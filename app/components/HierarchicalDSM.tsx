@@ -139,17 +139,27 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     return displayItems.filter(item => item.showInMatrix);
   }, [displayItems]);
 
-  // Helper to get the immediate parent folder for an item
-  const getImmediateParentFolder = (item: DisplayItem): string => {
+  // Helper to get all ancestor folder paths for an item (from deepest to shallowest)
+  const getAncestorFolders = (item: DisplayItem): string[] => {
     const parts = item.path.split("/");
-    // For files, return parent directory; for folders, return the folder itself if collapsed, otherwise its parent
+    const ancestors: string[] = [];
+    
     if (!item.isDirectory) {
-      // File: return its parent directory
-      return parts.slice(0, -1).join("/");
+      // For files, add parent directory
+      ancestors.push(parts.slice(0, -1).join("/"));
+      // Add all parent directories up the tree
+      for (let i = parts.length - 2; i > 0; i--) {
+        ancestors.push(parts.slice(0, i).join("/"));
+      }
     } else {
-      // Directory: if it's in the matrix (collapsed), return itself; otherwise shouldn't happen
-      return item.path;
+      // For collapsed directories in matrix, add itself and parents
+      ancestors.push(item.path);
+      for (let i = parts.length - 1; i > 0; i--) {
+        ancestors.push(parts.slice(0, i).join("/"));
+      }
     }
+    
+    return ancestors;
   };
 
   const getCellInfo = (rowIdx: number, colIdx: number) => {
@@ -336,16 +346,31 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                   );
                   const hasDependency = depCount > 0;
 
-                  // Determine if this cell is at the edge of a folder group
-                  const rowFolder = getImmediateParentFolder(rowItem);
-                  const colFolder = getImmediateParentFolder(colItem);
-                  const isInSameGroup = rowFolder === colFolder && rowFolder !== "";
+                  // Get all ancestor folders for both row and column items
+                  const rowAncestors = getAncestorFolders(rowItem);
+                  const colAncestors = getAncestorFolders(colItem);
                   
-                  // Check if this is the first/last row/col of the group
-                  const isFirstRowOfGroup = rowIdx === 0 || getImmediateParentFolder(matrixItems[rowIdx - 1]) !== rowFolder;
-                  const isLastRowOfGroup = rowIdx === matrixItems.length - 1 || getImmediateParentFolder(matrixItems[rowIdx + 1]) !== rowFolder;
-                  const isFirstColOfGroup = colIdx === 0 || getImmediateParentFolder(matrixItems[colIdx - 1]) !== colFolder;
-                  const isLastColOfGroup = colIdx === matrixItems.length - 1 || getImmediateParentFolder(matrixItems[colIdx + 1]) !== colFolder;
+                  // Find common ancestor folders (intersection)
+                  const commonAncestors = rowAncestors.filter(ancestor => colAncestors.includes(ancestor));
+                  
+                  // For each common ancestor, check if this cell is at the boundary
+                  const borderClasses: string[] = [];
+                  
+                  // Use the deepest common ancestor (first in the list) for the main border
+                  if (commonAncestors.length > 0) {
+                    const deepestCommon = commonAncestors[0];
+                    
+                    // Check if this is the first/last row/col for this ancestor group
+                    const isFirstRow = rowIdx === 0 || !getAncestorFolders(matrixItems[rowIdx - 1]).includes(deepestCommon);
+                    const isLastRow = rowIdx === matrixItems.length - 1 || !getAncestorFolders(matrixItems[rowIdx + 1]).includes(deepestCommon);
+                    const isFirstCol = colIdx === 0 || !getAncestorFolders(matrixItems[colIdx - 1]).includes(deepestCommon);
+                    const isLastCol = colIdx === matrixItems.length - 1 || !getAncestorFolders(matrixItems[colIdx + 1]).includes(deepestCommon);
+                    
+                    if (isFirstRow) borderClasses.push("border-t-2 border-t-black");
+                    if (isLastRow) borderClasses.push("border-b-2 border-b-black");
+                    if (isFirstCol) borderClasses.push("border-l-2 border-l-black");
+                    if (isLastCol) borderClasses.push("border-r-2 border-r-black");
+                  }
 
                   return (
                     <td
@@ -356,15 +381,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                           : hasDependency
                           ? "bg-orange-400 text-white font-semibold hover:bg-orange-500 cursor-pointer"
                           : "bg-white hover:bg-yellow-50"
-                      } ${
-                        isInSameGroup && isFirstRowOfGroup ? "border-t-2 border-t-black" : ""
-                      } ${
-                        isInSameGroup && isLastRowOfGroup ? "border-b-2 border-b-black" : ""
-                      } ${
-                        isInSameGroup && isFirstColOfGroup ? "border-l-2 border-l-black" : ""
-                      } ${
-                        isInSameGroup && isLastColOfGroup ? "border-r-2 border-r-black" : ""
-                      }`}
+                      } ${borderClasses.join(" ")}`}
                       style={{ minWidth: "50px", height: "40px" }}
                       title={
                         isMainDiagonal
