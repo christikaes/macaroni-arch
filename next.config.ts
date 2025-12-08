@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ['dependency-cruiser', 'madge'],
 };
 
 export default nextConfig;

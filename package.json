@@ -9,12 +9,15 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "dependency-cruiser": "^17.3.2",
+    "madge": "^8.0.0",
     "next": "16.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/madge": "^5.0.3",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
