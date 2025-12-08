@@ -80,7 +80,7 @@ export async function analyzeGitRepo(repoUrl: string): Promise<{ [fileName: stri
     }
 
     // Analyze dependencies by language group (more efficient for dependency-cruiser)
-    const allDependencies = new Map<string, string[]>();
+    const allDependencies = new Map<string, Map<string, number>>();
     
     for (const [_analyzerKey, groupFiles] of filesByAnalyzer.entries()) {
       const analyzer = fileAnalyzerMap.get(groupFiles[0]);
@@ -91,7 +91,7 @@ export async function analyzeGitRepo(repoUrl: string): Promise<{ [fileName: stri
       console.log(`Sample files in group:`, groupFiles.slice(0, 3));
       
       // Analyze all files of this type together
-      const deps = await analyzer.analyzeAll?.(groupFiles, tmpDir) ?? new Map<string, string[]>();
+      const deps = await analyzer.analyzeAll?.(groupFiles, tmpDir) ?? new Map<string, Map<string, number>>();
       
       // Merge results
       for (const [file, fileDeps] of deps.entries()) {
@@ -108,13 +108,13 @@ export async function analyzeGitRepo(repoUrl: string): Promise<{ [fileName: stri
         const filePath = path.join(tmpDir, file);
         const content = await fs.readFile(filePath, 'utf-8');
         
-        // Get dependencies from analysis
-        const dependencyPaths = allDependencies.get(file) ?? [];
+        // Get dependencies from analysis (Map<dependency, count>)
+        const dependencyMap = allDependencies.get(file) ?? new Map<string, number>();
         
-        // Convert to FileDependency format
-        const dependencies: FileDependency[] = dependencyPaths.map(depPath => ({
+        // Convert to FileDependency format with actual import counts
+        const dependencies: FileDependency[] = Array.from(dependencyMap.entries()).map(([depPath, count]) => ({
           fileName: depPath,
-          dependencies: 1 // Weight of dependency (can be enhanced later)
+          dependencies: count // Use actual import count
         }));
         
         // Calculate complexity (simple heuristic: lines of code / 10)
