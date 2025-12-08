@@ -205,13 +205,17 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
               {Array.from({ length: numHierarchyColumns }).map((_, idx) => (
                 <th
                   key={`header-${idx}`}
-                  className={`sticky z-20 bg-yellow-100 border border-yellow-400 text-xs font-semibold text-gray-700 ${
-                    idx === numHierarchyColumns - 1 ? "border-r border-r-black" : ""
-                  }`}
-                  style={{ left: `${idx * 120}px`, minWidth: "120px", padding: "0" }}
+                  className={`sticky z-20 bg-yellow-100 border border-yellow-400 text-xs font-semibold text-gray-700`}
+                  style={{ left: `${idx * 30}px`, minWidth: "30px", padding: "0" }}
                 >
                 </th>
               ))}
+              <th
+                key="header-id"
+                className="sticky z-20 bg-yellow-100 border border-yellow-400 border-r border-r-black text-xs font-semibold text-gray-700"
+                style={{ left: `${numHierarchyColumns * 40}px`, minWidth: "50px", padding: "0" }}
+              >
+              </th>
               {matrixItems.map((item, idx) => (
                 <th
                   key={idx}
@@ -219,7 +223,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                   style={{ minWidth: "50px", padding: "0" }}
                   title={item.path}
                 >
-                  <div className="text-center py-1">
+                  <div className="text-center">
                     {item.id}
                   </div>
                 </th>
@@ -248,8 +252,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                     return (
                       <td
                         key={`hierarchy-${colIdx}`}
-                        className="sticky z-10 bg-yellow-50 border border-yellow-400 border-r border-r-black"
-                        style={{ left: `${colIdx * 120}px`, minWidth: "120px" }}
+                        className="sticky z-10 bg-yellow-50 border border-yellow-400"
+                        style={{ left: `${colIdx * 40}px`, minWidth: "40px" }}
                       />
                     );
                   }
@@ -262,73 +266,66 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                   }
                   
                   return (
-                    <td
-                      key={`hierarchy-${colIdx}`}
-                      rowSpan={cellInfo.rowspan}
-                      colSpan={colspan}
-                      className={`sticky z-10 bg-yellow-50 border border-yellow-400 p-2 text-xs font-medium text-gray-800 ${
-                        isClickable ? "cursor-pointer hover:bg-yellow-100" : ""
-                      } ${(isLastHierarchyColumn || colIdx + colspan - 1 === numHierarchyColumns - 1) ? "border-r border-r-black" : ""}`}
-                      onClick={() => {
-                        if (cellInfo.isFolder) {
-                          toggleCollapse(cellInfo.folderPath);
-                        } else if (isLastPart && rowItem.isDirectory) {
-                          toggleCollapse(rowItem.path);
-                        }
-                      }}
-                      style={{ left: `${colIdx * 120}px`, minWidth: `${120 * colspan}px` }}
-                    >
-                      {cellInfo.content && (
-                        <div className={`flex items-center ${cellInfo.shouldRotate ? "justify-center" : ""}`}>
-                          <div className={cellInfo.shouldRotate ? "flex flex-col items-center" : "flex items-center"}>
+                    <>
+                      <td
+                        key={`hierarchy-${colIdx}`}
+                        rowSpan={cellInfo.rowspan}
+                        colSpan={colspan}
+                        className={`sticky z-10 bg-yellow-50 border border-yellow-400 text-xs font-medium text-gray-800 ${
+                          isClickable ? "cursor-pointer hover:bg-yellow-100" : ""
+                        }`}
+                        onClick={() => {
+                          if (cellInfo.isFolder) {
+                            toggleCollapse(cellInfo.folderPath);
+                          } else if (isLastPart && rowItem.isDirectory) {
+                            toggleCollapse(rowItem.path);
+                          }
+                        }}
+                        style={{ left: `${colIdx * 20}px`, minWidth: `${20 * colspan}px`, padding: " 4px" }}
+                      >
+                        {cellInfo.content && (
+                          <div className={cellInfo.shouldRotate ? "flex items-center justify-center" : ""}>
                             {cellInfo.shouldRotate && (
-                              <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }} className="py-2">
-                                <div className="flex items-center">
+                              <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }}>
+                                <div className="flex items-center gap-1">
                                   {cellInfo.isFolder && (
-                                    <>
-                                      <span className="mr-1 inline-block w-4">
-                                        {collapsed.has(cellInfo.folderPath) ? "▶" : "▼"}
-                                      </span>
-                                      <span className="mr-1">📁</span>
-                                    </>
+                                    <span className="text-xs">
+                                      {collapsed.has(cellInfo.folderPath) ? "▶" : "▼"}
+                                    </span>
                                   )}
                                   <span>{cellInfo.content}</span>
                                 </div>
                               </div>
                             )}
                             {!cellInfo.shouldRotate && (
-                              <>
-                                {isLastPart && (
-                                  <>
-                                    <span className="inline-block w-8 text-gray-500 mr-1">
-                                      {rowItem.id}
-                                    </span>
-                                    {rowItem.isDirectory && (
-                                      <>
-                                        <span className="mr-1 inline-block w-4">
-                                          {collapsed.has(rowItem.path) ? "▶" : "▼"}
-                                        </span>
-                                        <span className="mr-1">📁</span>
-                                      </>
-                                    )}
-                                    {!rowItem.isDirectory && <span className="mr-1">📄</span>}
-                                  </>
+                              <div className="flex items-center gap-1">
+                                {cellInfo.isFolder && (
+                                  <span className="text-xs">
+                                    {collapsed.has(cellInfo.folderPath) ? "▶" : "▼"}
+                                  </span>
                                 )}
-                                {cellInfo.isFolder && !isLastPart && (
-                                  <>
-                                    <span className="mr-1 inline-block w-4">
-                                      {collapsed.has(cellInfo.folderPath) ? "▶" : "▼"}
-                                    </span>
-                                    <span className="mr-1">📁</span>
-                                  </>
+                                {isLastPart && rowItem.isDirectory && (
+                                  <span className="text-xs">
+                                    {collapsed.has(rowItem.path) ? "▶" : "▼"}
+                                  </span>
                                 )}
                                 <span>{cellInfo.content}</span>
-                              </>
+                              </div>
                             )}
                           </div>
-                        </div>
+                        )}
+                      </td>
+                      {isLastPart && cellInfo.isFirstInGroup && (
+                        <td
+                          key="id-cell"
+                          rowSpan={cellInfo.rowspan}
+                          className="sticky z-10 bg-yellow-50 border border-yellow-400 border-r border-r-black text-xs text-center text-gray-500"
+                          style={{ left: `${numHierarchyColumns * 40}px`, minWidth: "50px", padding: "2px" }}
+                        >
+                          {rowItem.id}
+                        </td>
                       )}
-                    </td>
+                    </>
                   );
                 })}
                 {matrixItems.map((colItem, colIdx) => {
