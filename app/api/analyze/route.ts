@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { mockFiles } from "./mockData";
+import { DSMData, TreeNode } from "~/types/dsm";
 
-export interface DSMCell {
-  dependencies: number;
-}
-
-export interface FileNode {
-  name: string;
-  fullPath: string;
-  isDirectory: boolean;
-  children?: FileNode[];
-}
-
-export interface DSMData {
-  files: string[];
-  matrix: { [fromFile: string]: { [toFile: string]: DSMCell } };
-  fileTree: FileNode[];
-}
-
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const { repoUrl } = await request.json();
+    const { searchParams } = new URL(request.url);
+    const repoUrl = searchParams.get("repoUrl");
 
     if (!repoUrl) {
       return NextResponse.json(
@@ -30,25 +16,12 @@ export async function POST(request: NextRequest) {
 
     // TODO: Implement actual repository analysis
     // For now, return mock DSM data with hierarchical structure
-    const mockFiles = [
-      "src/app/page.tsx",
-      "src/app/layout.tsx",
-      "src/components/ui/Button.tsx",
-      "src/components/ui/Input.tsx",
-      "src/components/Header.tsx",
-      "src/components/Footer.tsx",
-      "src/utils/helpers.ts",
-      "src/utils/api.ts",
-      "src/services/auth.ts",
-      "src/services/data.ts",
-      "src/types/index.ts",
-    ];
-
+    
     // Build file tree from flat file list
-    const buildFileTree = (files: string[]): FileNode[] => {
+    const buildFileTree = (fileList: string[]): TreeNode[] => {
       const root: { [key: string]: any } = {};
 
-      files.forEach((file) => {
+      fileList.forEach((file) => {
         const parts = file.split("/");
         let current = root;
 
@@ -62,7 +35,7 @@ export async function POST(request: NextRequest) {
         });
       });
 
-      const convertToTree = (obj: any, prefix: string = ""): FileNode[] => {
+      const convertToTree = (obj: any, prefix: string = ""): TreeNode[] => {
         return Object.keys(obj).map((key) => {
           const fullPath = prefix ? `${prefix}/${key}` : key;
           const isDirectory = obj[key] !== null;
@@ -79,53 +52,17 @@ export async function POST(request: NextRequest) {
       return convertToTree(root);
     };
 
+    // Build recommended module tree (for now, same as file tree)
+    const buildRecommendedModuleTree = (fileList: string[]): TreeNode[] => {
+      // TODO: Implement logic to group files into recommended modules
+      // For now, pass through to buildFileTree
+      return buildFileTree(fileList);
+    };
+
     const mockDSMData: DSMData = {
       files: mockFiles,
-      fileTree: buildFileTree(mockFiles),
-      matrix: {
-        "src/app/page.tsx": {
-          "src/components/ui/Button.tsx": { dependencies: 2 },
-          "src/components/ui/Input.tsx": { dependencies: 1 },
-          "src/components/Header.tsx": { dependencies: 1 },
-          "src/utils/helpers.ts": { dependencies: 3 },
-          "src/utils/api.ts": { dependencies: 2 },
-          "src/services/auth.ts": { dependencies: 1 },
-          "src/types/index.ts": { dependencies: 2 },
-        },
-        "src/app/layout.tsx": {
-          "src/components/ui/Button.tsx": { dependencies: 1 },
-          "src/components/Footer.tsx": { dependencies: 1 },
-          "src/types/index.ts": { dependencies: 1 },
-        },
-        "src/components/ui/Button.tsx": {
-          "src/components/ui/Input.tsx": { dependencies: 2 },
-          "src/utils/helpers.ts": { dependencies: 1 },
-          "src/types/index.ts": { dependencies: 1 },
-        },
-        "src/components/ui/Input.tsx": {
-          "src/types/index.ts": { dependencies: 1 },
-        },
-        "src/components/Header.tsx": {
-          "src/components/ui/Input.tsx": { dependencies: 1 },
-        },
-        "src/utils/helpers.ts": {
-          "src/types/index.ts": { dependencies: 1 },
-        },
-        "src/utils/api.ts": {
-          "src/utils/helpers.ts": { dependencies: 1 },
-          "src/services/data.ts": { dependencies: 1 },
-          "src/types/index.ts": { dependencies: 1 },
-        },
-        "src/services/auth.ts": {
-          "src/utils/api.ts": { dependencies: 1 },
-          "src/services/data.ts": { dependencies: 1 },
-          "src/types/index.ts": { dependencies: 1 },
-        },
-        "src/services/data.ts": {
-          "src/utils/api.ts": { dependencies: 1 },
-          "src/types/index.ts": { dependencies: 1 },
-        },
-      },
+      fileTree: buildFileTree(Object.keys(mockFiles)),
+      recommendedModuleTree: buildRecommendedModuleTree(Object.keys(mockFiles)),
     };
 
     return NextResponse.json(mockDSMData);

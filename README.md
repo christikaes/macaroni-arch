@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Macaroni Matrix 🍝
+
+A code dependency visualization tool using Design Structure Matrix (DSM) to help you understand and analyze your codebase structure.
+
+## What is Macaroni Matrix?
+
+Macaroni Matrix visualizes code dependencies in a hierarchical Design Structure Matrix format, making it easy to:
+- Identify circular dependencies
+- Understand module coupling
+- View cyclomatic complexity scores
+- Navigate through folder hierarchies
+- Analyze code maintainability
+
+## Features
+
+- **Hierarchical DSM Visualization**: Interactive matrix showing file-to-file dependencies
+- **Expand/Collapse Navigation**: Click on folders to drill down into your codebase structure
+- **Cyclomatic Complexity**: View complexity scores on diagonal cells to identify complex code
+- **Nested Folder Grouping**: Visual borders show hierarchical relationships between modules
+- **Cell Merging**: Clean, compact display with merged cells for folder hierarchies
+- **Yellow Theme**: Bright, easy-to-read interface
 
 ## Getting Started
 
-First, run the development server:
+### Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Enter a GitHub repository URL on the home page
+2. Click "Analyze Repository"
+3. Explore the interactive DSM:
+   - **Rows/Columns**: Files and collapsed folders
+   - **Numbers**: Dependency counts (how many times row depends on column)
+   - **Diagonal (gray)**: Cyclomatic complexity score for that file
+   - **Nested borders**: Show folder groupings
+   - **Click folders**: Expand/collapse hierarchies
 
-## Learn More
+## Tech Stack
 
-To learn more about Next.js, take a look at the following resources:
+- **Next.js 16** with App Router
+- **React 19** with hooks
+- **TypeScript 5**
+- **Tailwind CSS 4**
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/
+  ├── page.tsx              # Landing page with repo input
+  ├── analyze/page.tsx      # DSM visualization page
+  ├── components/
+  │   └── HierarchicalDSM.tsx  # Main DSM component
+  └── api/
+      └── analyze/route.ts  # API endpoint (currently mock data)
+```
 
-## Deploy on Vercel
+## Cyclomatic Complexity
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The diagonal cells show cyclomatic complexity scores:
+- **1-5**: Low complexity (green in future color-coding)
+- **6-10**: Moderate complexity (yellow)
+- **11-20**: High complexity (orange)
+- **20+**: Very high complexity (red)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Future Enhancements
+
+- Actual GitHub repository analysis
+- Real dependency calculation from code parsing
+- Color coding for complexity levels
+- Export/share functionality
+- Historical analysis and trends
+
+## License
+
+MIT

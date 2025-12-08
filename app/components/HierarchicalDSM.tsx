@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { DSMData } from "../api/analyze/route";
+import { useState, useMemo, Fragment } from "react";
+import { DSMData } from "~/types/dsm";
 
 interface DSMMatrixProps {
   data: DSMData;
@@ -18,8 +18,11 @@ interface DisplayItem {
 }
 
 export default function DSMMatrix({ data }: DSMMatrixProps) {
-  const { files, matrix } = data;
+  const { files, fileTree } = data;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  
+  // Get file list from files object keys
+  const fileList = useMemo(() => Object.keys(files), [files]);
 
   // Build hierarchical display items with proper IDs
   const displayItems = useMemo(() => {
@@ -43,7 +46,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     };
 
     // Build tree from files
-    files.forEach((file, idx) => {
+    fileList.forEach((file, idx) => {
       const parts = file.split("/");
       let current = root;
       
@@ -98,7 +101,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
 
     traverse(root, 0);
     return items;
-  }, [files, collapsed]);
+  }, [fileList, collapsed]);
 
   const toggleCollapse = (path: string) => {
     setCollapsed((prev) => {
@@ -117,10 +120,11 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     let total = 0;
     fromIndices.forEach((fromIdx) => {
       toIndices.forEach((toIdx) => {
-        const fromFile = files[fromIdx];
-        const toFile = files[toIdx];
-        if (matrix[fromFile] && matrix[fromFile][toFile]) {
-          total += matrix[fromFile][toFile].dependencies;
+        const fromFile = fileList[fromIdx];
+        const toFile = fileList[toIdx];
+        const dep = files[fromFile]?.dependencies.find(d => d.fileName === toFile);
+        if (dep) {
+          total += dep.dependencies;
         }
       });
     });
@@ -276,9 +280,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                   }
                   
                   return (
-                    <>
+                    <Fragment key={`hierarchy-${colIdx}`}>
                       <td
-                        key={`hierarchy-${colIdx}`}
                         rowSpan={cellInfo.rowspan}
                         colSpan={colspan}
                         className={`sticky z-10 bg-yellow-50 border border-yellow-400 text-xs font-medium text-gray-800 ${
@@ -327,7 +330,6 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                       </td>
                       {isLastPart && cellInfo.isFirstInGroup && (
                         <td
-                          key="id-cell"
                           rowSpan={cellInfo.rowspan}
                           className="sticky z-10 bg-yellow-50 border border-yellow-400 border-r border-r-black text-xs text-center text-gray-500"
                           style={{ left: `${numHierarchyColumns * 40}px`, minWidth: "50px", padding: "2px" }}
@@ -335,7 +337,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                           {rowItem.id}
                         </td>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
                 {matrixItems.map((colItem, colIdx) => {
@@ -345,6 +347,13 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                     colItem.fileIndices
                   );
                   const hasDependency = depCount > 0;
+                  
+                  // Get complexity score from files for single files
+                  let complexityScore: number | undefined;
+                  if (isMainDiagonal && rowItem.fileIndices.length === 1) {
+                    const filePath = fileList[rowItem.fileIndices[0]];
+                    complexityScore = files[filePath]?.complexity;
+                  }
 
                   // Get all ancestor folders for both row and column items
                   const rowAncestors = getAncestorFolders(rowItem);
@@ -385,11 +394,11 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                       style={{ minWidth: "50px", height: "40px" }}
                       title={
                         isMainDiagonal
-                          ? rowItem.path
+                          ? `${rowItem.path}${complexityScore !== undefined ? ` - Complexity: ${complexityScore}` : ''}`
                           : `${rowItem.path} → ${colItem.path}: ${depCount} dependencies`
                       }
                     >
-                      {!isMainDiagonal && hasDependency ? depCount : ""}
+                      {isMainDiagonal && complexityScore !== undefined ? complexityScore : (!isMainDiagonal && hasDependency ? depCount : "")}
                     </td>
                   );
                 })}

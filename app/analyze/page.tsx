@@ -2,8 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import HierarchicalDSM from "../components/HierarchicalDSM";
-import { DSMData } from "../api/analyze/route";
+import HierarchicalDSM from "~/components/HierarchicalDSM";
+import { DSMData } from "~/types/dsm";
 import Link from "next/link";
 
 export default function AnalyzePage() {
@@ -24,13 +24,7 @@ export default function AnalyzePage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ repoUrl: url }),
-      });
+      const response = await fetch(`/api/analyze?repoUrl=${encodeURIComponent(url)}`);
 
       if (!response.ok) {
         throw new Error("Failed to analyze repository");
