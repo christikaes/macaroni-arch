@@ -12,6 +12,7 @@ export default function AnalyzePage() {
   const [dsmData, setDsmData] = useState<DSMData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progressMessage, setProgressMessage] = useState<string>("");
 
   useEffect(() => {
     if (repoUrl) {
@@ -22,21 +23,31 @@ export default function AnalyzePage() {
   const fetchDSMData = async (url: string) => {
     setLoading(true);
     setError(null);
+    setProgressMessage("");
 
-    try {
-      const response = await fetch(`/api/analyze?repoUrl=${encodeURIComponent(url)}`);
+    const eventSource = new EventSource(`/api/analyze?repoUrl=${encodeURIComponent(url)}`);
 
-      if (!response.ok) {
-        throw new Error("Failed to analyze repository");
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === "progress") {
+        setProgressMessage(data.message);
+      } else if (data.type === "complete") {
+        setDsmData(data.data);
+        setLoading(false);
+        eventSource.close();
+      } else if (data.type === "error") {
+        setError(data.error);
+        setLoading(false);
+        eventSource.close();
       }
+    };
 
-      const data = await response.json();
-      setDsmData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
+    eventSource.onerror = () => {
+      setError("Connection error occurred");
       setLoading(false);
-    }
+      eventSource.close();
+    };
   };
 
   return (
@@ -85,6 +96,11 @@ export default function AnalyzePage() {
             <p className="text-xl font-semibold text-gray-700">
               Analyzing repository...
             </p>
+            {progressMessage && (
+              <p className="mt-4 text-lg text-orange-600 font-medium animate-pulse">
+                {progressMessage}
+              </p>
+            )}
             <p className="mt-2 text-gray-500">
               Untangling the spaghetti code!
             </p>

@@ -44,18 +44,22 @@ async function cloneAndAnalyze(
       ]);
 
       let lastProgress = 0;
+      let lastPhase = '';
       
       // Git outputs progress to stderr
       gitProcess.stderr.on('data', (data: Buffer) => {
         const output = data.toString();
-        // Look for progress patterns like "Receiving objects: 45% (123/456)"
+        // Look for progress patterns like "Receiving objects: 45% (123/456)" or "Resolving deltas: 93% (456/789)"
         const progressMatch = output.match(/(\w+\s+\w+):\s+(\d+)%/);
         if (progressMatch && onProgress) {
+          const phase = progressMatch[1]; // e.g., "Receiving objects" or "Resolving deltas"
           const percent = parseInt(progressMatch[2]);
-          // Only send updates for significant changes (every 5%)
-          if (percent - lastProgress >= 5 || percent === 100) {
-            onProgress(`Cloning repository... ${percent}%`);
+          // Only send updates for significant changes (every 5%) or phase changes
+          if (percent - lastProgress >= 5 || percent === 100 || phase !== lastPhase) {
+            const phaseText = phase === 'Resolving deltas' ? 'Processing files' : 'Downloading';
+            onProgress(`Cloning repository... ${phaseText} ${percent}%`);
             lastProgress = percent;
+            lastPhase = phase;
           }
         }
       });
@@ -100,7 +104,7 @@ async function cloneAndAnalyze(
 
 /**
  * Analyze repository and generate DSM data
- * Works with any Git repository (GitHub, GitLab, Bitbucket, self-hosted)
+ * Works with any Git repository (GitLab, Bitbucket, self-hosted, etc.)
  */
 export async function analyzeGitRepo(
   repoUrl: string,

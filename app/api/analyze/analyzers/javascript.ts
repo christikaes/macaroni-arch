@@ -1,14 +1,25 @@
 import { LanguageAnalyzer } from "./types";
 import * as path from "path";
 import madge from "madge";
+import { JS_EXTENSIONS, JS_FILE_EXTENSION_PATTERN, MADGE_EXCLUDE_PATTERNS, EXCLUDED_DIRS } from "./constants";
 
 // Configuration toggles
 const INCLUDE_TYPES = true;
 const INCLUDE_TESTS = true;
 
-// Supported file extensions
-const FILE_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'vue'] as const;
-const FILE_EXTENSION_PATTERN = /\.(ts|tsx|js|jsx)$/;
+// Store for counting imports per file
+// Map<fileName, Map<specifier, count>>
+const importCounts = new Map<string, Map<string, number>>();
+
+// Track which files have been processed to avoid duplicate counts
+const processedFiles = new Set<string>();
+
+function ensureFileEntry(fileId: string): Map<string, number> {
+  if (!importCounts.has(fileId)) {
+    importCounts.set(fileId, new Map<string, number>());
+  }
+  return importCounts.get(fileId)!;
+}
 
 // Type definitions
 type ASTNode = {
@@ -26,20 +37,6 @@ type DetectiveParams = {
   ast: unknown;
   walker: { walk: (ast: unknown, handlers: Record<string, (node: unknown) => void>) => void };
 };
-
-// Store for counting imports per file
-// Map<fileName, Map<specifier, count>>
-const importCounts = new Map<string, Map<string, number>>();
-
-// Track which files have been processed to avoid duplicate counts
-const processedFiles = new Set<string>();
-
-function ensureFileEntry(fileId: string): Map<string, number> {
-  if (!importCounts.has(fileId)) {
-    importCounts.set(fileId, new Map<string, number>());
-  }
-  return importCounts.get(fileId)!;
-}
 
 /**
  * Count the number of imported names in an import declaration.
@@ -99,16 +96,22 @@ function makeOnAfterFile(fileName: string) {
  * Create madge configuration with conditional exclude patterns and detective options.
  */
 function createMadgeConfig(repoPath: string, onAfterFileHandler?: (params: unknown) => void) {
-  const excludePatterns = [/node_modules/];
+  // Combine directory exclusions (converted to regex) with file-level patterns
+  const excludePatterns = [
+    ...EXCLUDED_DIRS.map(dir => new RegExp(dir.replace('/', ''))),
+    ...MADGE_EXCLUDE_PATTERNS,
+  ];
+  
   if (!INCLUDE_TESTS) {
     excludePatterns.push(/\.test\.(ts|js)$/, /\.spec\.(ts|js)$/);
   }
 
   const baseConfig = {
-    fileExtensions: [...FILE_EXTENSIONS],
+    fileExtensions: [...JS_EXTENSIONS],
     excludeRegExp: excludePatterns,
-    tsConfig: path.join(repoPath, 'tsconfig.json'),
+    tsConfig: undefined, // Don't require tsconfig.json
     webpackConfig: undefined,
+    requireConfig: undefined,
   };
 
   if (!onAfterFileHandler) {
@@ -139,7 +142,7 @@ function createMadgeConfig(repoPath: string, onAfterFileHandler?: (params: unkno
  * Normalize a file path by removing file extensions.
  */
 function normalizeFilePath(filePath: string): string {
-  return filePath.replace(FILE_EXTENSION_PATTERN, '');
+  return filePath.replace(JS_FILE_EXTENSION_PATTERN, '');
 }
 
 /**
@@ -197,7 +200,7 @@ function findImportCount(dep: string, fileCounts: Map<string, number>): number {
     const normalized = normalizeImportSpecifier(specifier);
     const normalizedDep = normalizeFilePath(dep);
     
-    if (normalizedDep.includes(normalized.replace(FILE_EXTENSION_PATTERN, ''))) {
+    if (normalizedDep.includes(normalized.replace(JS_FILE_EXTENSION_PATTERN, ''))) {
       return count;
     }
   }
@@ -229,7 +232,7 @@ function buildDependencyCountMap(
 
 // JavaScript/TypeScript analyzer using madge
 export const jsAnalyzer: LanguageAnalyzer = {
-  extensions: FILE_EXTENSIONS.map(ext => `.${ext}`),
+  extensions: JS_EXTENSIONS.map(ext => `.${ext}`),
   
   async analyze(_filePath: string, _content: string, _allFiles: string[], _repoPath?: string): Promise<string[]> {
     // This method is kept for interface compatibility but not used
@@ -248,21 +251,38 @@ export const jsAnalyzer: LanguageAnalyzer = {
       const allDeps: { [key: string]: string[] } = {};
       
       // Analyze all files to get basic dependencies
-      const result = await madge(repoPath, createMadgeConfig(repoPath));
-      
-      Object.assign(allDeps, result.obj());
-      
-      // Analyze each file individually with import counting
-      for (const file of files) {
-        const fullPath = path.join(repoPath, file);
+      try {
+        const result = await madge(repoPath, createMadgeConfig(repoPath));
+        const obj = result.obj();
         
-        try {
-          const onAfterFileHandler = makeOnAfterFile(file);
-          
-          await madge(fullPath, createMadgeConfig(repoPath, onAfterFileHandler));
-        } catch {
-          // Silently continue if individual file analysis fails
+        if (obj && typeof obj === 'object') {
+          Object.assign(allDeps, obj);
+        } else {
+          console.warn('Madge returned invalid dependency object');
         }
+      } catch (madgeError) {
+        console.error('Madge analysis failed on repository:', madgeError);
+        // Continue with empty dependencies - will try individual file analysis
+      }
+      
+      // Performance optimization: skip individual file analysis for repos with >100 files
+      const shouldCountImports = files.length <= 100;
+      
+      if (shouldCountImports) {
+        // Analyze each file individually with import counting
+        for (const file of files) {
+          const fullPath = path.join(repoPath, file);
+          
+          try {
+            const onAfterFileHandler = makeOnAfterFile(file);
+            
+            await madge(fullPath, createMadgeConfig(repoPath, onAfterFileHandler));
+          } catch {
+            // Silently continue if individual file analysis fails
+          }
+        }
+      } else {
+        console.log(`Skipping detailed import counting for ${files.length} files (performance mode)`);
       }
 
       const dependencies = allDeps;
