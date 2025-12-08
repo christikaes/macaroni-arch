@@ -71,6 +71,7 @@ export const mockFiles: { [fileName: string]: FileData } = {
     complexity: 7,
     dependencies: [
       { fileName: "src/utils/api.ts", dependencies: 1 },
+      { fileName: "src/services/auth.ts", dependencies: 2 }, // Cyclical with auth.ts
       { fileName: "src/types/index.ts", dependencies: 1 },
     ],
   },

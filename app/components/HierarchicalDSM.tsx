@@ -348,6 +348,13 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                   );
                   const hasDependency = depCount > 0;
                   
+                  // Check for cyclical dependency (both directions exist)
+                  const reverseDepCount = !isMainDiagonal ? getDependencyCount(
+                    colItem.fileIndices,
+                    rowItem.fileIndices
+                  ) : 0;
+                  const isCyclical = hasDependency && reverseDepCount > 0;
+                  
                   // Get complexity score from files for single files
                   let complexityScore: number | undefined;
                   if (isMainDiagonal && rowItem.fileIndices.length === 1) {
@@ -388,14 +395,18 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                         isMainDiagonal
                           ? "bg-gray-300"
                           : hasDependency
-                          ? "bg-orange-400 text-white font-semibold hover:bg-orange-500 cursor-pointer"
+                          ? isCyclical
+                            ? "bg-orange-400 text-red-600 font-bold hover:bg-orange-500 cursor-pointer"
+                            : "bg-orange-400 text-white font-semibold hover:bg-orange-500 cursor-pointer"
                           : "bg-white hover:bg-yellow-50"
                       } ${borderClasses.join(" ")}`}
                       style={{ minWidth: "50px", height: "40px" }}
                       title={
                         isMainDiagonal
                           ? `${rowItem.path}${complexityScore !== undefined ? ` - Complexity: ${complexityScore}` : ''}`
-                          : `${rowItem.path} → ${colItem.path}: ${depCount} dependencies`
+                          : hasDependency
+                          ? `${rowItem.path} → ${colItem.path}: ${depCount} dependencies${isCyclical ? ' ⚠️ CYCLICAL' : ''}`
+                          : ''
                       }
                     >
                       {isMainDiagonal && complexityScore !== undefined ? complexityScore : (!isMainDiagonal && hasDependency ? depCount : "")}

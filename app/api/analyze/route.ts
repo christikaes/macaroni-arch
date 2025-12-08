@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mockFiles } from "./mockData";
 import { DSMData, TreeNode } from "~/types/dsm";
+import { analyzeGitRepo } from "./githubAnalyzer";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,8 +15,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // TODO: Implement actual repository analysis
-    // For now, return mock DSM data with hierarchical structure
+    // Analyze Git repository
+    let files;
+    try {
+      files = await analyzeGitRepo(repoUrl);
+    } catch (error) {
+      console.error("Error analyzing Git repo:", error);
+      // Fall back to mock data on error
+      console.log("Falling back to mock data");
+      files = mockFiles;
+    }
     
     // Build file tree from flat file list
     const buildFileTree = (fileList: string[]): TreeNode[] => {
@@ -59,13 +68,15 @@ export async function GET(request: NextRequest) {
       return buildFileTree(fileList);
     };
 
-    const mockDSMData: DSMData = {
-      files: mockFiles,
-      fileTree: buildFileTree(Object.keys(mockFiles)),
-      recommendedModuleTree: buildRecommendedModuleTree(Object.keys(mockFiles)),
+    const fileList = Object.keys(files);
+
+    const dsmData: DSMData = {
+      files,
+      fileTree: buildFileTree(fileList),
+      recommendedModuleTree: buildRecommendedModuleTree(fileList),
     };
 
-    return NextResponse.json(mockDSMData);
+    return NextResponse.json(dsmData);
   } catch (error) {
     console.error("Error analyzing repository:", error);
     return NextResponse.json(
