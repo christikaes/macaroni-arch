@@ -117,12 +117,83 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     let total = 0;
     fromIndices.forEach((fromIdx) => {
       toIndices.forEach((toIdx) => {
-        if (matrix[fromIdx] && matrix[fromIdx][toIdx]) {
-          total += matrix[fromIdx][toIdx].dependencies;
+        const fromFile = files[fromIdx];
+        const toFile = files[toIdx];
+        if (matrix[fromFile] && matrix[fromFile][toFile]) {
+          total += matrix[fromFile][toFile].dependencies;
         }
       });
     });
     return total;
+  };
+
+  // Get maximum indent level to determine number of hierarchy columns
+  const maxIndent = useMemo(() => {
+    return Math.max(...displayItems.map(item => item.indent));
+  }, [displayItems]);
+
+  const numHierarchyColumns = maxIndent + 1;
+
+  // Calculate rowspans for merged cells
+  const matrixItems = useMemo(() => {
+    return displayItems.filter(item => item.showInMatrix);
+  }, [displayItems]);
+
+  // Helper to get the immediate parent folder for an item
+  const getImmediateParentFolder = (item: DisplayItem): string => {
+    const parts = item.path.split("/");
+    // For files, return parent directory; for folders, return the folder itself if collapsed, otherwise its parent
+    if (!item.isDirectory) {
+      // File: return its parent directory
+      return parts.slice(0, -1).join("/");
+    } else {
+      // Directory: if it's in the matrix (collapsed), return itself; otherwise shouldn't happen
+      return item.path;
+    }
+  };
+
+  const getCellInfo = (rowIdx: number, colIdx: number) => {
+    const rowItem = matrixItems[rowIdx];
+    const pathParts = rowItem.path.split("/");
+    const cellContent = colIdx < pathParts.length ? pathParts[colIdx] : "";
+    
+    if (!cellContent) {
+      return { content: "", rowspan: 0, isFirstInGroup: false, isFolder: false, folderPath: "", shouldRotate: false };
+    }
+
+    // Check if this is the first row in a group with the same path up to this level
+    const pathUpToHere = pathParts.slice(0, colIdx + 1).join("/");
+    let isFirstInGroup = true;
+    
+    if (rowIdx > 0) {
+      const prevPathParts = matrixItems[rowIdx - 1].path.split("/");
+      const prevPathUpToHere = prevPathParts.slice(0, colIdx + 1).join("/");
+      if (pathUpToHere === prevPathUpToHere) {
+        isFirstInGroup = false;
+      }
+    }
+
+    // Calculate rowspan
+    let rowspan = 1;
+    if (isFirstInGroup) {
+      for (let i = rowIdx + 1; i < matrixItems.length; i++) {
+        const nextPathParts = matrixItems[i].path.split("/");
+        const nextPathUpToHere = nextPathParts.slice(0, colIdx + 1).join("/");
+        if (pathUpToHere === nextPathUpToHere) {
+          rowspan++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Check if this represents a folder (not the last part of the path)
+    const isFolder = colIdx < pathParts.length - 1;
+    
+    // Determine if text should be rotated: rotate if rowspan > 1 (merged cells with children below)
+    const shouldRotate = rowspan > 1;
+
+    return { content: cellContent, rowspan, isFirstInGroup, isFolder, folderPath: pathUpToHere, shouldRotate };
   };
 
   return (
@@ -131,14 +202,21 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
         <table className="border-collapse">
           <thead>
             <tr>
-              <th className="sticky left-0 z-20 bg-yellow-100 border border-yellow-400 p-2 text-xs font-semibold text-gray-700">
-                File/Folder
-              </th>
-              {displayItems.filter(item => item.showInMatrix).map((item, idx) => (
+              {Array.from({ length: numHierarchyColumns }).map((_, idx) => (
+                <th
+                  key={`header-${idx}`}
+                  className={`sticky z-20 bg-yellow-100 border border-yellow-400 text-xs font-semibold text-gray-700 ${
+                    idx === numHierarchyColumns - 1 ? "border-r border-r-black" : ""
+                  }`}
+                  style={{ left: `${idx * 120}px`, minWidth: "120px", padding: "0" }}
+                >
+                </th>
+              ))}
+              {matrixItems.map((item, idx) => (
                 <th
                   key={idx}
-                  className="border border-yellow-400 bg-yellow-100 p-2 text-xs font-semibold text-gray-700"
-                  style={{ minWidth: "50px" }}
+                  className="border border-yellow-400 bg-yellow-100 text-xs font-semibold text-gray-700"
+                  style={{ minWidth: "50px", padding: "0" }}
                   title={item.path}
                 >
                   <div className="text-center py-1">
@@ -149,34 +227,128 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
             </tr>
           </thead>
           <tbody>
-            {displayItems.map((rowItem, rowIdx) => (
+            {matrixItems.map((rowItem, rowIdx) => (
               <tr key={rowIdx}>
-                <td
-                  className={`sticky left-0 z-10 bg-yellow-50 border border-yellow-400 p-2 text-xs font-medium text-gray-800 whitespace-nowrap ${
-                    rowItem.isDirectory ? "cursor-pointer hover:bg-yellow-100" : ""
-                  }`}
-                  onClick={() => rowItem.isDirectory && toggleCollapse(rowItem.path)}
-                  style={{ paddingLeft: `${8 + rowItem.indent * 16}px` }}
-                >
-                  <span className="inline-block w-8 text-gray-500">
-                    {rowItem.showInMatrix ? rowItem.id : ""}
-                  </span>
-                  {rowItem.isDirectory && (
-                    <span className="mr-1 inline-block w-4">
-                      {collapsed.has(rowItem.path) ? "▶" : "▼"}
-                    </span>
-                  )}
-                  {rowItem.isDirectory && <span className="mr-1">📁</span>}
-                  {!rowItem.isDirectory && <span className="mr-1">📄</span>}
-                  {rowItem.displayName}
-                </td>
-                {rowItem.showInMatrix && displayItems.filter(item => item.showInMatrix).map((colItem, colIdx) => {
+                {Array.from({ length: numHierarchyColumns }).map((_, colIdx) => {
+                  const cellInfo = getCellInfo(rowIdx, colIdx);
+                  
+                  // Skip rendering if this cell is part of a merged group (but not the first)
+                  if (!cellInfo.isFirstInGroup) {
+                    return null;
+                  }
+
+                  const pathParts = rowItem.path.split("/");
+                  const isLastPart = colIdx === pathParts.length - 1;
+                  const isClickable = cellInfo.isFolder || (isLastPart && rowItem.isDirectory);
+                  const isLastHierarchyColumn = colIdx === numHierarchyColumns - 1;
+                  
+                  // If this is an empty cell and it's the last hierarchy column, skip it
+                  // The content will be rendered in an earlier column
+                  if (!cellInfo.content && isLastHierarchyColumn) {
+                    return (
+                      <td
+                        key={`hierarchy-${colIdx}`}
+                        className="sticky z-10 bg-yellow-50 border border-yellow-400 border-r border-r-black"
+                        style={{ left: `${colIdx * 120}px`, minWidth: "120px" }}
+                      />
+                    );
+                  }
+                  
+                  // Calculate colspan for cells that should span to the separator line
+                  let colspan = 1;
+                  if (cellInfo.content && isLastPart) {
+                    // This is the last part of the path, it should span remaining columns
+                    colspan = numHierarchyColumns - colIdx;
+                  }
+                  
+                  return (
+                    <td
+                      key={`hierarchy-${colIdx}`}
+                      rowSpan={cellInfo.rowspan}
+                      colSpan={colspan}
+                      className={`sticky z-10 bg-yellow-50 border border-yellow-400 p-2 text-xs font-medium text-gray-800 ${
+                        isClickable ? "cursor-pointer hover:bg-yellow-100" : ""
+                      } ${(isLastHierarchyColumn || colIdx + colspan - 1 === numHierarchyColumns - 1) ? "border-r border-r-black" : ""}`}
+                      onClick={() => {
+                        if (cellInfo.isFolder) {
+                          toggleCollapse(cellInfo.folderPath);
+                        } else if (isLastPart && rowItem.isDirectory) {
+                          toggleCollapse(rowItem.path);
+                        }
+                      }}
+                      style={{ left: `${colIdx * 120}px`, minWidth: `${120 * colspan}px` }}
+                    >
+                      {cellInfo.content && (
+                        <div className={`flex items-center ${cellInfo.shouldRotate ? "justify-center" : ""}`}>
+                          <div className={cellInfo.shouldRotate ? "flex flex-col items-center" : "flex items-center"}>
+                            {cellInfo.shouldRotate && (
+                              <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)" }} className="py-2">
+                                <div className="flex items-center">
+                                  {cellInfo.isFolder && (
+                                    <>
+                                      <span className="mr-1 inline-block w-4">
+                                        {collapsed.has(cellInfo.folderPath) ? "▶" : "▼"}
+                                      </span>
+                                      <span className="mr-1">📁</span>
+                                    </>
+                                  )}
+                                  <span>{cellInfo.content}</span>
+                                </div>
+                              </div>
+                            )}
+                            {!cellInfo.shouldRotate && (
+                              <>
+                                {isLastPart && (
+                                  <>
+                                    <span className="inline-block w-8 text-gray-500 mr-1">
+                                      {rowItem.id}
+                                    </span>
+                                    {rowItem.isDirectory && (
+                                      <>
+                                        <span className="mr-1 inline-block w-4">
+                                          {collapsed.has(rowItem.path) ? "▶" : "▼"}
+                                        </span>
+                                        <span className="mr-1">📁</span>
+                                      </>
+                                    )}
+                                    {!rowItem.isDirectory && <span className="mr-1">📄</span>}
+                                  </>
+                                )}
+                                {cellInfo.isFolder && !isLastPart && (
+                                  <>
+                                    <span className="mr-1 inline-block w-4">
+                                      {collapsed.has(cellInfo.folderPath) ? "▶" : "▼"}
+                                    </span>
+                                    <span className="mr-1">📁</span>
+                                  </>
+                                )}
+                                <span>{cellInfo.content}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+                {matrixItems.map((colItem, colIdx) => {
                   const isMainDiagonal = rowItem.path === colItem.path;
                   const depCount = getDependencyCount(
                     rowItem.fileIndices,
                     colItem.fileIndices
                   );
                   const hasDependency = depCount > 0;
+
+                  // Determine if this cell is at the edge of a folder group
+                  const rowFolder = getImmediateParentFolder(rowItem);
+                  const colFolder = getImmediateParentFolder(colItem);
+                  const isInSameGroup = rowFolder === colFolder && rowFolder !== "";
+                  
+                  // Check if this is the first/last row/col of the group
+                  const isFirstRowOfGroup = rowIdx === 0 || getImmediateParentFolder(matrixItems[rowIdx - 1]) !== rowFolder;
+                  const isLastRowOfGroup = rowIdx === matrixItems.length - 1 || getImmediateParentFolder(matrixItems[rowIdx + 1]) !== rowFolder;
+                  const isFirstColOfGroup = colIdx === 0 || getImmediateParentFolder(matrixItems[colIdx - 1]) !== colFolder;
+                  const isLastColOfGroup = colIdx === matrixItems.length - 1 || getImmediateParentFolder(matrixItems[colIdx + 1]) !== colFolder;
 
                   return (
                     <td
@@ -187,6 +359,14 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                           : hasDependency
                           ? "bg-orange-400 text-white font-semibold hover:bg-orange-500 cursor-pointer"
                           : "bg-white hover:bg-yellow-50"
+                      } ${
+                        isInSameGroup && isFirstRowOfGroup ? "border-t-2 border-t-black" : ""
+                      } ${
+                        isInSameGroup && isLastRowOfGroup ? "border-b-2 border-b-black" : ""
+                      } ${
+                        isInSameGroup && isFirstColOfGroup ? "border-l-2 border-l-black" : ""
+                      } ${
+                        isInSameGroup && isLastColOfGroup ? "border-r-2 border-r-black" : ""
                       }`}
                       style={{ minWidth: "50px", height: "40px" }}
                       title={

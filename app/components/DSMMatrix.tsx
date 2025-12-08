@@ -39,14 +39,15 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
             </tr>
           </thead>
           <tbody>
-            {files.map((file, rowIdx) => (
+            {files.map((fromFile, rowIdx) => (
               <tr key={rowIdx}>
                 <td className="sticky left-0 z-10 bg-yellow-50 border border-yellow-400 p-2 text-xs font-medium text-gray-800 whitespace-nowrap">
-                  {file}
+                  {fromFile}
                 </td>
-                {matrix[rowIdx].map((cell, colIdx) => {
+                {files.map((toFile, colIdx) => {
                   const isMainDiagonal = rowIdx === colIdx;
-                  const hasDependency = cell.dependencies > 0;
+                  const cell = matrix[fromFile]?.[toFile];
+                  const hasDependency = cell && cell.dependencies > 0;
 
                   return (
                     <td
@@ -61,8 +62,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                       style={{ minWidth: "40px", height: "40px" }}
                       title={
                         isMainDiagonal
-                          ? file
-                          : `${files[rowIdx]} → ${files[colIdx]}: ${cell.dependencies} dependencies`
+                          ? fromFile
+                          : `${fromFile} → ${toFile}: ${cell?.dependencies || 0} dependencies`
                       }
                     >
                       {!isMainDiagonal && hasDependency ? cell.dependencies : ""}
