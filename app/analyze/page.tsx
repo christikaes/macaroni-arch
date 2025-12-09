@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import HierarchicalDSM from "~/components/HierarchicalDSM.old";
+import DSM from "~/components/DSM";
 import { DSMData } from "~/types/dsm";
 import Link from "next/link";
 
@@ -121,7 +121,7 @@ export default function AnalyzePage() {
         {dsmData && !loading && !error && (
           <div className="flex-1 flex items-center justify-center px-8 pb-8">
             <div className="bg-white rounded-lg shadow-xl">
-              <HierarchicalDSM data={dsmData} />
+              <DSM data={dsmData} />
             </div>
           </div>
         )}

@@ -9,17 +9,12 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@types/d3": "^7.4.3",
-    "d3": "^7.9.0",
     "dependency-cruiser": "^17.3.2",
     "escomplex": "^2.0.0-alpha",
-    "grid": "^4.10.8",
     "madge": "^8.0.0",
     "next": "16.0.7",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "react-virtualized": "^9.22.6",
-    "react-window": "^1.8.11",
     "react-zoom-pan-pinch": "^3.7.0"
   },
   "devDependencies": {
@@ -28,8 +23,6 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/react-virtualized": "^9.22.3",
-    "@types/react-window": "^1.8.8",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "tailwindcss": "^4",
