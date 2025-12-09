@@ -2,6 +2,7 @@ import { LanguageAnalyzer } from "./types";
 import * as path from "path";
 import madge from "madge";
 import { JS_EXTENSIONS, JS_FILE_EXTENSION_PATTERN, MADGE_EXCLUDE_PATTERNS, EXCLUDED_DIRS } from "./constants";
+import * as babelParser from "@babel/parser";
 
 // Type definitions for esprima (no @types package available)
 interface EsprimaNode {
@@ -264,21 +265,34 @@ function buildDependencyCountMap(
  */
 export function calculateComplexity(content: string, filePath?: string): number {
   try {
-    // The cyclomatic-complexity library uses esprima.parseScript which doesn't
-    // support ES6 module syntax (import/export). We need to handle this ourselves.
-    // Import esprima directly to parse as module first, then fall back to script
-    
     let ast;
-    try {
-      // Try parsing as ES6 module first (supports import/export)
-      ast = esprima.parseModule(content, { loc: true, jsx: true });
-    } catch {
+    const isTypeScript = filePath && /\.tsx?$/.test(filePath);
+    
+    if (isTypeScript) {
+      // Use Babel parser for TypeScript files
       try {
-        // Fall back to script parsing (for non-module code)
-        ast = esprima.parseScript(content, { loc: true, jsx: true });
+        const parsed = babelParser.parse(content, {
+          sourceType: 'module',
+          plugins: ['typescript', 'jsx']
+        });
+        ast = parsed.program as unknown as EsprimaAST;
       } catch (parseError) {
-        console.error(`Failed to parse ${filePath}:`, parseError);
+        console.error(`Failed to parse TypeScript ${filePath}:`, parseError);
         return 1;
+      }
+    } else {
+      // Use esprima for JavaScript files
+      try {
+        // Try parsing as ES6 module first (supports import/export)
+        ast = esprima.parseModule(content, { loc: true, jsx: true });
+      } catch {
+        try {
+          // Fall back to script parsing (for non-module code)
+          ast = esprima.parseScript(content, { loc: true, jsx: true });
+        } catch (parseError) {
+          console.error(`Failed to parse ${filePath}:`, parseError);
+          return 1;
+        }
       }
     }
     
