@@ -266,47 +266,6 @@ export function MatrixRows({
                 textColor = "text-white";
               }
 
-              const borderStyle: Record<string, string> = {
-                borderTop: "1px solid rgba(250, 204, 21, 0.5)",
-                borderBottom: "1px solid rgba(250, 204, 21, 0.5)",
-                borderLeft: "1px solid rgba(250, 204, 21, 0.5)",
-                borderRight: "1px solid rgba(250, 204, 21, 0.5)",
-                boxShadow: "inset 0 0 0 1px rgba(250, 204, 21, 0.5)",
-              };
-
-              if (borderClasses.length > 1) {
-                const shadows: string[] = [
-                  "inset 0 0 0 1px rgba(250, 204, 21, 0.5)",
-                ];
-                if (borderClasses.includes("border-t-2 border-t-black"))
-                  shadows.push("inset 0 2px 0 0 rgba(0, 0, 0, 0.5)");
-                if (borderClasses.includes("border-b-2 border-b-black"))
-                  shadows.push("inset 0 -2px 0 0 rgba(0, 0, 0, 0.5)");
-                if (borderClasses.includes("border-l-2 border-l-black"))
-                  shadows.push("inset 2px 0 0 0 rgba(0, 0, 0, 0.5)");
-                if (borderClasses.includes("border-r-2 border-r-black"))
-                  shadows.push("inset -2px 0 0 0 rgba(0, 0, 0, 0.5)");
-                borderStyle.boxShadow = shadows.join(", ");
-              } else if (borderClasses.length === 1) {
-                if (borderClasses.includes("border-t-2 border-t-black"))
-                  borderStyle.boxShadow =
-                    "inset 0 2px 0 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(250, 204, 21, 0.5)";
-                if (borderClasses.includes("border-b-2 border-b-black"))
-                  borderStyle.boxShadow =
-                    "inset 0 -2px 0 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(250, 204, 21, 0.5)";
-                if (borderClasses.includes("border-l-2 border-l-black"))
-                  borderStyle.boxShadow =
-                    "inset 2px 0 0 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(250, 204, 21, 0.5)";
-                if (borderClasses.includes("border-r-2 border-r-black"))
-                  borderStyle.boxShadow =
-                    "inset -2px 0 0 0 rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(250, 204, 21, 0.5)";
-              }
-
-              delete borderStyle.borderTop;
-              delete borderStyle.borderBottom;
-              delete borderStyle.borderLeft;
-              delete borderStyle.borderRight;
-
               const cellClass = isCyclical
                 ? styles.matrixCellCyclical
                 : hasDependency
@@ -340,7 +299,6 @@ export function MatrixRows({
                     gridColumn: colIdx + numHierarchyColumns + 2,
                     gridRow: rowIdx + 2,
                     cursor: githubUrl ? 'pointer' : 'default',
-                    ...borderStyle,
                   }}
                   title={
                     isMainDiagonal

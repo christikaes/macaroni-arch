@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { DSMData, DisplayItem } from "~/types/dsm";
-import { analyzeGitRepo } from "./gitRepoAnalyzer";
+import { analyzeGitRepoWithClone } from "./gitCloneAnalyzer";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -60,8 +60,10 @@ export async function GET(request: NextRequest) {
       };
 
       try {
-        // Analyze Git repository with progress callbacks
-        const { files, branch } = await analyzeGitRepo(repoUrl, sendProgress);
+        // Analyze Git repository with progress callbacks using git clone
+        console.log('[Route] Starting analysis with git clone for:', repoUrl);
+        const { files, branch } = await analyzeGitRepoWithClone(repoUrl, sendProgress);
+        console.log('[Route] Analysis complete, files:', Object.keys(files).length);
         sendProgress("Building file tree...");
         
         // Build display items from file list
@@ -107,7 +109,24 @@ export async function GET(request: NextRequest) {
 
           const traverse = (node: TreeNodeInternal, indent: number, parentId: string = "") => {
             const sortedChildren = Array.from(node.children.entries()).sort(
-              ([nameA], [nameB]) => nameA.localeCompare(nameB)
+              ([nameA, nodeA], [nameB, nodeB]) => {
+                // Both are files in the same directory
+                if (nodeA.isFile && nodeB.isFile) {
+                  // Extract base name without extension
+                  const baseA = nameA.replace(/\.[^.]+$/, '');
+                  const baseB = nameB.replace(/\.[^.]+$/, '');
+                  
+                  // Check if either is an index file
+                  const aIsIndex = baseA === 'index';
+                  const bIsIndex = baseB === 'index';
+                  
+                  if (aIsIndex && !bIsIndex) return -1;
+                  if (!aIsIndex && bIsIndex) return 1;
+                }
+                
+                // Otherwise sort alphabetically
+                return nameA.localeCompare(nameB);
+              }
             );
 
             sortedChildren.forEach(([, child], index) => {

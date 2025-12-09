@@ -1,7 +1,7 @@
 import { LanguageAnalyzer } from "./types";
 import * as path from "path";
-import madge from "madge";
-import { JS_EXTENSIONS, JS_FILE_EXTENSION_PATTERN, MADGE_EXCLUDE_PATTERNS, EXCLUDED_DIRS } from "./constants";
+import * as fs from "fs";
+import { JS_EXTENSIONS } from "./constants";
 import * as babelParser from "@babel/parser";
 
 // Type definitions for esprima (no @types package available)
@@ -27,231 +27,121 @@ interface EsprimaModule {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const esprima = require('esprima') as EsprimaModule;
 
-// Configuration toggles
-const INCLUDE_TYPES = true;
-const INCLUDE_TESTS = true;
-
-// Store for counting imports per file
-// Map<fileName, Map<specifier, count>>
-const importCounts = new Map<string, Map<string, number>>();
-
-// Track which files have been processed to avoid duplicate counts
-const processedFiles = new Set<string>();
-
-function ensureFileEntry(fileId: string): Map<string, number> {
-  if (!importCounts.has(fileId)) {
-    importCounts.set(fileId, new Map<string, number>());
-  }
-  return importCounts.get(fileId)!;
-}
-
-// Type definitions
-type ASTNode = {
-  type: string;
-  body?: Array<{
-    type: string;
-    source?: { value?: string };
-    specifiers?: Array<{ type: string }>;
-  }>;
-};
-
-type ImportSpecifier = { type: string };
-
-type DetectiveParams = {
-  ast: unknown;
-  walker: { walk: (ast: unknown, handlers: Record<string, (node: unknown) => void>) => void };
-};
-
 /**
- * Count the number of imported names in an import declaration.
- * Examples:
- * - import { a, b, c } from './foo' => 3
- * - import a from './foo' => 1
- * - import * as ns from './foo' => 1
- * - import './foo' => 0 (side-effect only)
+ * Extract import specifiers and their counts directly from source code using Babel parser
  */
-function countImportsInDeclaration(node: unknown): number {
-  const n = node as { specifiers?: Array<ImportSpecifier> };
-  if (!n.specifiers?.length) {
-    return 0; // Side-effect only import
-  }
-
-  return n.specifiers.filter(spec => 
-    spec.type === "ImportSpecifier" ||
-    spec.type === "ImportDefaultSpecifier" ||
-    spec.type === "ImportNamespaceSpecifier"
-  ).length;
-}
-
-/**
- * Create a callback handler for madge's detective that processes AST and counts imports.
- * This handler is called after parsing each file.
- */
-function makeOnAfterFile(fileName: string) {
-  return (params: unknown) => {
-    // Skip if we've already processed this file to avoid duplicate counts
-    if (processedFiles.has(fileName)) {
-      return;
-    }
-    processedFiles.add(fileName);
-
-    const { ast } = params as DetectiveParams;
-    const fileCounts = ensureFileEntry(fileName);
-    const astNode = ast as ASTNode;
+function extractImportsFromSource(filePath: string): Map<string, number> {
+  const importCounts = new Map<string, number>();
+  
+  try {
+    const source = fs.readFileSync(filePath, 'utf-8');
+    const ast = babelParser.parse(source, {
+      sourceType: 'module',
+      plugins: ['typescript', 'jsx'],
+      errorRecovery: true
+    });
     
-    if (astNode.type !== 'Program' || !astNode.body) {
-      return;
-    }
-
-    // Process each import declaration in the file
-    for (const node of astNode.body) {
-      if (node.type !== 'ImportDeclaration' || !node.source?.value) {
-        continue;
-      }
-      
-      const specifier = node.source.value;
-      const count = countImportsInDeclaration(node);
-      fileCounts.set(specifier, count || 1);
-    }
-  };
-}
-
-/**
- * Create madge configuration with conditional exclude patterns and detective options.
- */
-function createMadgeConfig(repoPath: string, onAfterFileHandler?: (params: unknown) => void) {
-  // Combine directory exclusions (converted to regex) with file-level patterns
-  const excludePatterns = [
-    ...EXCLUDED_DIRS.map(dir => new RegExp(dir.replace('/', ''))),
-    ...MADGE_EXCLUDE_PATTERNS,
-  ];
-  
-  if (!INCLUDE_TESTS) {
-    excludePatterns.push(/\.test\.(ts|js)$/, /\.spec\.(ts|js)$/);
-  }
-
-  const baseConfig = {
-    fileExtensions: [...JS_EXTENSIONS],
-    excludeRegExp: excludePatterns,
-    tsConfig: undefined, // Don't require tsconfig.json
-    webpackConfig: undefined,
-    requireConfig: undefined,
-  };
-
-  if (!onAfterFileHandler) {
-    return baseConfig;
-  }
-
-  return {
-    ...baseConfig,
-    detectiveOptions: {
-      ts: {
-        skipTypeImports: !INCLUDE_TYPES,
-        onAfterFile: onAfterFileHandler
-      },
-      tsx: {
-        skipTypeImports: !INCLUDE_TYPES,
-        jsx: true,
-        onAfterFile: onAfterFileHandler
-      },
-      es6: {
-        skipTypeImports: !INCLUDE_TYPES,
-        onAfterFile: onAfterFileHandler
+    for (const node of ast.program.body) {
+      if (node.type === 'ImportDeclaration' && node.source?.value) {
+        const importSpec = node.source.value;
+        
+        // Count the number of imported items
+        let count = 0;
+        for (const specifier of node.specifiers || []) {
+          if (specifier.type === 'ImportSpecifier' || 
+              specifier.type === 'ImportDefaultSpecifier' || 
+              specifier.type === 'ImportNamespaceSpecifier') {
+            count++;
+          }
+        }
+        
+        // Default to 1 if no specifiers (side-effect import)
+        if (count === 0) count = 1;
+        
+        const existing = importCounts.get(importSpec) || 0;
+        importCounts.set(importSpec, existing + count);
       }
     }
-  };
-}
-
-/**
- * Normalize a file path by removing file extensions.
- */
-function normalizeFilePath(filePath: string): string {
-  return filePath.replace(JS_FILE_EXTENSION_PATTERN, '');
-}
-
-/**
- * Check if a module path matches a given file.
- */
-function isModulePathMatch(modulePath: string, file: string, repoPath: string): boolean {
-  const normalizedFile = normalizeFilePath(file);
-  const normalizedModulePath = normalizeFilePath(modulePath);
-  
-  return modulePath === file ||
-         modulePath === path.join(repoPath, file) ||
-         modulePath === `./${file}` ||
-         normalizedModulePath === normalizedFile ||
-         modulePath.endsWith(`/${file}`) ||
-         normalizedModulePath.endsWith(`/${normalizedFile}`);
-}
-
-/**
- * Find the madge module path key that corresponds to a file.
- */
-function findModulePathKey(file: string, dependencies: { [key: string]: string[] }, repoPath: string): string | null {
-  for (const modulePath of Object.keys(dependencies)) {
-    if (isModulePathMatch(modulePath, file, repoPath)) {
-      return modulePath;
-    }
+    
+    return importCounts;
+  } catch {
+    return importCounts;
   }
-  return null;
 }
 
 /**
- * Match a dependency path to a file in the project.
+ * Load path aliases from tsconfig.json
  */
-function matchDependencyToFile(dep: string, files: string[], repoPath: string): string | null {
-  return files.find(f => isModulePathMatch(dep, f, repoPath)) || null;
+function loadPathAliases(repoPath: string): Map<string, string> {
+  const aliases = new Map<string, string>();
+  
+  try {
+    const tsconfigPath = path.join(repoPath, 'tsconfig.json');
+    if (!fs.existsSync(tsconfigPath)) {
+      return aliases;
+    }
+    
+    const tsconfig = JSON.parse(fs.readFileSync(tsconfigPath, 'utf-8'));
+    const paths = tsconfig?.compilerOptions?.paths;
+    
+    if (!paths || typeof paths !== 'object') {
+      return aliases;
+    }
+    
+    // Convert paths like "~/*": ["./app/*"] to aliases
+    for (const [alias, targets] of Object.entries(paths)) {
+      if (Array.isArray(targets) && targets.length > 0) {
+        // Remove the /* suffix from alias and target
+        const aliasPrefix = alias.replace(/\/\*$/, '');
+        const targetPath = (targets[0] as string).replace(/\/\*$/, '').replace(/^\.\//, '');
+        aliases.set(aliasPrefix, targetPath);
+      }
+    }
+    
+    return aliases;
+  } catch {
+    return aliases;
+  }
 }
 
 /**
- * Normalize an import specifier by removing path prefixes.
+ * Resolve an import specifier to a file path
  */
-function normalizeImportSpecifier(specifier: string): string {
+function resolveImportToFile(specifier: string, fromFile: string, repoPath: string, files: string[], pathAliases: Map<string, string>): string | null {
+  // Handle relative imports
   if (specifier.startsWith('./') || specifier.startsWith('../')) {
-    return specifier.replace(/^\.\/?/, '').replace(/^\.\.\//, '');
-  }
-  if (specifier.startsWith('~/')) {
-    return specifier.replace(/^~\//, 'src/app/');
-  }
-  return specifier;
-}
-
-/**
- * Find the import count for a dependency by matching its specifier to resolved paths.
- */
-function findImportCount(dep: string, fileCounts: Map<string, number>): number {
-  for (const [specifier, count] of fileCounts.entries()) {
-    const normalized = normalizeImportSpecifier(specifier);
-    const normalizedDep = normalizeFilePath(dep);
+    const fromDir = path.dirname(path.join(repoPath, fromFile));
+    const resolved = path.resolve(fromDir, specifier);
+    const relative = path.relative(repoPath, resolved);
     
-    if (normalizedDep.includes(normalized.replace(JS_FILE_EXTENSION_PATTERN, ''))) {
-      return count;
+    // Try with various extensions
+    for (const ext of ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx']) {
+      const withExt = relative + ext;
+      if (files.includes(withExt)) {
+        return withExt;
+      }
     }
-  }
-  return 1; // Default count if no match found
-}
-
-/**
- * Build a map of file dependencies with their import counts.
- */
-function buildDependencyCountMap(
-  deps: string[],
-  files: string[],
-  repoPath: string,
-  fileCounts: Map<string, number>
-): Map<string, number> {
-  const depCountMap = new Map<string, number>();
-  
-  for (const dep of deps) {
-    const matchedFile = matchDependencyToFile(dep, files, repoPath);
     
-    if (matchedFile) {
-      const count = findImportCount(dep, fileCounts);
-      depCountMap.set(matchedFile, count);
+    // Try exact match
+    if (files.includes(relative)) {
+      return relative;
     }
   }
   
-  return depCountMap;
+  // Handle path aliases from tsconfig
+  for (const [aliasPrefix, targetPath] of pathAliases.entries()) {
+    if (specifier.startsWith(aliasPrefix + '/')) {
+      const withoutAlias = specifier.replace(aliasPrefix + '/', targetPath + '/');
+      for (const ext of ['.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx']) {
+        const withExt = withoutAlias + ext;
+        if (files.includes(withExt)) {
+          return withExt;
+        }
+      }
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -381,7 +271,7 @@ export function calculateComplexity(content: string, filePath?: string): number 
   }
 }
 
-// JavaScript/TypeScript analyzer using madge
+// JavaScript/TypeScript analyzer using Babel parser
 export const jsAnalyzer: LanguageAnalyzer = {
   extensions: JS_EXTENSIONS.map(ext => `.${ext}`),
   
@@ -395,61 +285,50 @@ export const jsAnalyzer: LanguageAnalyzer = {
     const dependencyMap = new Map<string, Map<string, number>>();
     
     try {
-      // Clear previous import counts
-      importCounts.clear();
-      processedFiles.clear();
+      console.log('[JS Analyzer] Analyzing', files.length, 'files with Babel parser');
       
-      const allDeps: { [key: string]: string[] } = {};
+      // Load path aliases from tsconfig.json
+      const pathAliases = loadPathAliases(repoPath);
+      console.log('[JS Analyzer] Loaded path aliases:', Array.from(pathAliases.entries()));
       
-      // Analyze all files to get basic dependencies
-      try {
-        const result = await madge(repoPath, createMadgeConfig(repoPath));
-        const obj = result.obj();
-        
-        if (obj && typeof obj === 'object') {
-          Object.assign(allDeps, obj);
-        } else {
-          console.warn('Madge returned invalid dependency object');
-        }
-      } catch (madgeError) {
-        console.error('Madge analysis failed on repository:', madgeError);
-        // Continue with empty dependencies - will try individual file analysis
-      }
-      
-      // Analyze each file individually with import counting
+      // Analyze each file to extract dependencies
       for (const file of files) {
         const fullPath = path.join(repoPath, file);
         
+        if (!fs.existsSync(fullPath)) {
+          continue;
+        }
+        
         try {
-          const onAfterFileHandler = makeOnAfterFile(file);
+          // Extract imports from source with counts
+          const importsBySpecifier = extractImportsFromSource(fullPath);
           
-          await madge(fullPath, createMadgeConfig(repoPath, onAfterFileHandler));
-        } catch {
-          // Silently continue if individual file analysis fails
+          // Resolve each import to a file
+          const depCountMap = new Map<string, number>();
+          
+          for (const [importSpec, count] of importsBySpecifier.entries()) {
+            const resolvedFile = resolveImportToFile(importSpec, file, repoPath, files, pathAliases);
+            
+            if (resolvedFile) {
+              // Add the count for this import
+              const currentCount = depCountMap.get(resolvedFile) || 0;
+              depCountMap.set(resolvedFile, currentCount + count);
+            }
+          }
+          
+          if (depCountMap.size > 0) {
+            dependencyMap.set(file, depCountMap);
+          }
+        } catch (error) {
+          console.error(`[JS Analyzer] Error analyzing ${file}:`, error);
         }
       }
-
-      const dependencies = allDeps;
       
-      // Build a map with dependency counts
-      for (const file of files) {
-        const modulePathKey = findModulePathKey(file, dependencies, repoPath);
-        if (!modulePathKey) continue;
-        
-        const deps = dependencies[modulePathKey];
-        if (!deps?.length) continue;
-        
-        const fileCounts = importCounts.get(file) || new Map<string, number>();
-        const depCountMap = buildDependencyCountMap(deps, files, repoPath, fileCounts);
-        
-        if (depCountMap.size > 0) {
-          dependencyMap.set(file, depCountMap);
-        }
-      }
+      console.log('[JS Analyzer] Analysis complete:', dependencyMap.size, 'files with dependencies');
       
       return dependencyMap;
     } catch (error) {
-      console.error(`Error analyzing files with madge:`, error);
+      console.error(`[JS Analyzer] Error analyzing files:`, error);
       return dependencyMap;
     }
   }
