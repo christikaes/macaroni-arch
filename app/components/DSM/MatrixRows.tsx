@@ -11,6 +11,7 @@ interface MatrixRowsProps {
   collapsed: Set<string>;
   toggleCollapse: (path: string) => void;
   setHoveredCell: (cell: { row: number; col: number } | null) => void;
+  setHoveredFolder: (folder: string | null) => void;
   getDependencyCount: (fromIndices: number[], toIndices: number[]) => number;
   getDependencyColor: (count: number) => string;
   getComplexityColor: (complexity: number) => string;
@@ -25,6 +26,7 @@ export function MatrixRows({
   collapsed,
   toggleCollapse,
   setHoveredCell,
+  setHoveredFolder,
   getDependencyCount,
   getDependencyColor,
   getComplexityColor,
@@ -84,6 +86,14 @@ export function MatrixRows({
                       toggleCollapse(rowItem.path);
                     }
                   }}
+                  onMouseEnter={() => {
+                    if (hierarchyCell.isFolder) {
+                      setHoveredFolder(hierarchyCell.folderPath);
+                    } else if (isLastPart && rowItem.isDirectory) {
+                      setHoveredFolder(rowItem.path);
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredFolder(null)}
                   style={{
                     gridColumn: `${colIdx + 1} / span ${gridColumnSpan}`,
                     gridRow: `${rowIdx + 2} / span ${gridRowSpan}`,

@@ -67,7 +67,7 @@ export default function AnalyzePage() {
               Macaroni Arch
             </Link>
             <h1 className="text-4xl font-bold text-yellow-400">
-              Macaroni Architecture Analysis of: {repoUrl ? repoUrl.split('/').pop()?.replace('.git', '') || repoUrl : 'Repository'}
+              {repoUrl ? repoUrl.split('/').pop()?.replace('.git', '') || repoUrl : 'Repository'}
             </h1>
             {repoUrl && (
               <p className="mt-2 text-sm text-gray-400">

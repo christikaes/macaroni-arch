@@ -83,6 +83,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
               numHierarchyColumns={numHierarchyColumns}
               toggleCollapse={toggleCollapse}
               setHoveredFolder={setHoveredFolder}
+              hoveredFolder={hoveredFolder}
             />
 
             <HoverHighlights
@@ -98,6 +99,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
               collapsed={collapsed}
               toggleCollapse={toggleCollapse}
               setHoveredCell={setHoveredCell}
+              setHoveredFolder={setHoveredFolder}
               getDependencyCount={getDependencyCount}
               getDependencyColor={getDependencyColor}
               getComplexityColor={getComplexityColor}

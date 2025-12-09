@@ -7,6 +7,7 @@ interface FolderRectanglesProps {
   numHierarchyColumns: number;
   toggleCollapse: (path: string) => void;
   setHoveredFolder: (path: string | null) => void;
+  hoveredFolder: string | null;
 }
 
 export function FolderRectangles({
@@ -14,6 +15,7 @@ export function FolderRectangles({
   numHierarchyColumns,
   toggleCollapse,
   setHoveredFolder,
+  hoveredFolder,
 }: FolderRectanglesProps) {
   const { getAncestorFolders } = useFolderHelpers();
 
@@ -74,7 +76,7 @@ export function FolderRectangles({
             <div
               key={`folder-rect-${path}`}
               title={path}
-              className={styles.folderRect}
+              className={`${styles.folderRect} ${hoveredFolder === path ? styles.folderRectHovered : ''}`}
               onMouseDown={(e) => {
                 mouseDownPos = { x: e.clientX, y: e.clientY };
               }}
