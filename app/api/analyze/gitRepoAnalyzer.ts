@@ -9,6 +9,7 @@ import { calculateComplexity } from "./analyzers/javascript";
 import { calculatePythonComplexity } from "./analyzers/python";
 import { calculateJavaComplexity } from "./analyzers/java";
 import { calculateCSharpComplexity } from "./analyzers/csharp";
+import { calculateGoComplexity } from "./analyzers/go";
 import { CODE_EXTENSIONS, EXCLUDED_DIRS } from "./analyzers/constants";
 
 const execAsync = promisify(exec);
@@ -204,17 +205,19 @@ export async function analyzeGitRepo(
         const pythonExtensions = ['.py'];
         const javaExtensions = ['.java'];
         const csharpExtensions = ['.cs'];
+        const goExtensions = ['.go'];
         
         if (jsExtensions.includes(ext)) {
           complexity = calculateComplexity(content, file);
         } else if (pythonExtensions.includes(ext)) {
-          const fullPath = path.join(tmpDir, file);
-          complexity = await calculatePythonComplexity(fullPath);
+          complexity = calculatePythonComplexity(content);
         } else if (javaExtensions.includes(ext)) {
           const fullPath = path.join(tmpDir, file);
           complexity = calculateJavaComplexity(fullPath);
         } else if (csharpExtensions.includes(ext)) {
           complexity = calculateCSharpComplexity(content);
+        } else if (goExtensions.includes(ext)) {
+          complexity = calculateGoComplexity(content);
         }
         
         fileData[file] = {

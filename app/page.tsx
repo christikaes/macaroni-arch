@@ -18,8 +18,9 @@ const SAMPLE_PROJECTS = [
   // { name: "PY | FastAPI", url: "https://github.com/fastapi/fastapi" },
   { name: "Java | SpringPetclinic", url: "https://github.com/spring-projects/spring-petclinic" },
   { name: "C# | eShopOnWeb", url: "https://github.com/dotnet-architecture/eShopOnWeb" },
+  { name: "Go | Gorilla Mux", url: "https://github.com/gorilla/mux" },
+  // { name: "Go | Docker CLI", url: "https://github.com/docker/cli" },
   // { name: "Java | SpringBoot", url: "https://github.com/spring-projects/spring-boot", disabled: true },
-  // { name: "Go | Go", url: "https://github.com/golang/go/tree/master", disabled: true },
 ];
 
 export default function Home() {

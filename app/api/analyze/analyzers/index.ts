@@ -4,7 +4,8 @@ export { pythonAnalyzer } from "./python";
 export { cppAnalyzer } from "./cpp";
 export { javaAnalyzer } from "./java";
 export { csharpAnalyzer } from "./csharp";
-export { goAnalyzer, rustAnalyzer } from "./placeholders";
+export { goAnalyzer } from "./go";
+export { rustAnalyzer } from "./placeholders";
 
 import { LanguageAnalyzer } from "./types";
 import { jsAnalyzer } from "./javascript";
@@ -12,7 +13,8 @@ import { pythonAnalyzer } from "./python";
 import { cppAnalyzer } from "./cpp";
 import { javaAnalyzer } from "./java";
 import { csharpAnalyzer } from "./csharp";
-import { goAnalyzer, rustAnalyzer } from "./placeholders";
+import { goAnalyzer } from "./go";
+import { rustAnalyzer } from "./placeholders";
 
 // Analyzer registry
 export const analyzers: LanguageAnalyzer[] = [

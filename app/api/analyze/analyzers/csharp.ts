@@ -77,6 +77,80 @@ function buildCSharpNamespaceCache(allFiles: string[], baseDir: string): void {
 }
 
 /**
+ * Extract using statements and aliases from C# content
+ */
+function extractUsings(content: string): { 
+  usings: Set<string>; 
+  aliases: Map<string, string>;
+  staticUsings: Set<string>;
+} {
+  const usings = new Set<string>();
+  const aliases = new Map<string, string>();
+  const staticUsings = new Set<string>();
+  
+  // Regular using: using Microsoft.eShopWeb;
+  const usingRegex = /^\s*(?:global\s+)?using\s+(?!static\s)(?![\w]+\s*=\s*)([\w.]+)\s*;/gm;
+  
+  // Using alias: using ProjectAlias = Microsoft.eShopWeb.ApplicationCore;
+  const aliasRegex = /^\s*(?:global\s+)?using\s+([\w]+)\s*=\s*([\w.]+)\s*;/gm;
+  
+  // Static using: using static Microsoft.eShopWeb.Constants;
+  const staticUsingRegex = /^\s*(?:global\s+)?using\s+static\s+([\w.]+)\s*;/gm;
+  
+  let match;
+  
+  // Extract regular usings
+  while ((match = usingRegex.exec(content)) !== null) {
+    const usingStatement = match[1];
+    
+    // Skip framework namespaces
+    if (usingStatement.startsWith('System') || 
+        (usingStatement.startsWith('Microsoft') && !usingStatement.includes('eShopWeb')) ||
+        usingStatement.startsWith('Xunit') ||
+        usingStatement.startsWith('Moq')) {
+      continue;
+    }
+    
+    usings.add(usingStatement);
+  }
+  
+  // Extract aliases
+  while ((match = aliasRegex.exec(content)) !== null) {
+    const alias = match[1];
+    const fullNamespace = match[2];
+    
+    // Skip framework namespaces
+    if (fullNamespace.startsWith('System') || 
+        (fullNamespace.startsWith('Microsoft') && !fullNamespace.includes('eShopWeb')) ||
+        fullNamespace.startsWith('Xunit') ||
+        fullNamespace.startsWith('Moq')) {
+      continue;
+    }
+    
+    aliases.set(alias, fullNamespace);
+    usings.add(fullNamespace); // Also add to usings for resolution
+  }
+  
+  // Extract static usings
+  while ((match = staticUsingRegex.exec(content)) !== null) {
+    const staticUsing = match[1];
+    
+    // Skip framework namespaces
+    if (staticUsing.startsWith('System') || 
+        (staticUsing.startsWith('Microsoft') && !staticUsing.includes('eShopWeb')) ||
+        staticUsing.startsWith('Xunit') ||
+        staticUsing.startsWith('Moq')) {
+      continue;
+    }
+    
+    staticUsings.add(staticUsing);
+    usings.add(staticUsing);
+  }
+  
+  return { usings, aliases, staticUsings };
+}
+
+/**
  * Convert C# using statement to file paths by matching namespace+class
  * Returns array because a namespace using can reference multiple files
  */
@@ -131,33 +205,17 @@ export const csharpAnalyzer: LanguageAnalyzer = {
     
     console.log(`[C# Analyzer] Analyzing file: ${filePath}`);
     
-    // Note: We need the base directory to read files for namespace resolution
-    // This is a limitation - we'll try to infer it from the file path
-    // In practice, this is called from gitRepoAnalyzer which has the tmpDir
-    
-    // Extract using statements (excluding System and Microsoft framework namespaces)
-    const usingRegex = /^\s*using\s+([\w.]+)\s*;/gm;
-    const usings = new Set<string>();
-    
-    let match;
-    while ((match = usingRegex.exec(content)) !== null) {
-      const usingStatement = match[1];
-      console.log(`[C# Analyzer]   Found using: ${usingStatement}`);
-      
-      // Skip system/framework namespaces (but allow project namespaces like Microsoft.eShopWeb)
-      if (usingStatement.startsWith('System') || 
-          (usingStatement.startsWith('Microsoft') && !usingStatement.includes('eShopWeb')) ||
-          usingStatement.startsWith('Xunit') ||
-          usingStatement.startsWith('Moq')) {
-        console.log(`[C# Analyzer]   Skipped (framework): ${usingStatement}`);
-        continue;
-      }
-      usings.add(usingStatement);
-    }
+    const { usings, aliases, staticUsings } = extractUsings(content);
     
     console.log(`[C# Analyzer]   Project usings: ${Array.from(usings).join(', ')}`);
+    if (aliases.size > 0) {
+      console.log(`[C# Analyzer]   Aliases: ${Array.from(aliases.entries()).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+    }
+    if (staticUsings.size > 0) {
+      console.log(`[C# Analyzer]   Static usings: ${Array.from(staticUsings).join(', ')}`);
+    }
     
-    // Try to resolve each using to file(s)
+    // Resolve each using to file(s)
     for (const usingStatement of usings) {
       const resolvedFiles = csharpUsingToFilePaths(usingStatement);
       for (const resolvedFile of resolvedFiles) {
@@ -191,33 +249,13 @@ export const csharpAnalyzer: LanguageAnalyzer = {
       
       try {
         const content = await fs.promises.readFile(fullPath, 'utf-8');
+        const { usings, aliases } = extractUsings(content);
         
-        // Extract using statements
-        const usingRegex = /^\s*using\s+([\w.]+)\s*;/gm;
-        const usings = new Set<string>();
-        
-        let match;
-        while ((match = usingRegex.exec(content)) !== null) {
-          const usingStatement = match[1];
-          
-          // Skip system/framework namespaces
-          if (usingStatement.startsWith('System') || 
-              (usingStatement.startsWith('Microsoft') && !usingStatement.includes('eShopWeb')) ||
-              usingStatement.startsWith('Xunit') ||
-              usingStatement.startsWith('Moq')) {
-            continue;
-          }
-          usings.add(usingStatement);
-        }
-        
-        // Find which specific classes from each namespace are actually used
         const fileDeps = new Map<string, number>();
         
         for (const usingStatement of usings) {
-          // Get all files in this namespace
           const filesInNamespace = csharpUsingToFilePaths(usingStatement);
           
-          // For each file in the namespace, check if its class is actually referenced in the code
           for (const potentialDep of filesInNamespace) {
             if (potentialDep === file) continue;
             
@@ -227,17 +265,37 @@ export const csharpAnalyzer: LanguageAnalyzer = {
             const { className } = depInfo;
             
             // Look for references to this class in the code
-            // Match: new ClassName(), ClassName.Method(), ClassName variable, : ClassName (inheritance), <ClassName> (generics)
-            const classRefPattern = new RegExp(
-              `\\b${className}\\b(?![\\w])`,
-              'g'
-            );
-            
+            const classRefPattern = new RegExp(`\\b${className}\\b(?![\\w])`, 'g');
             const matches = content.match(classRefPattern);
+            
             if (matches && matches.length > 0) {
-              // Count actual usage (excluding the using statement itself)
-              const usageCount = matches.length;
-              fileDeps.set(potentialDep, usageCount);
+              fileDeps.set(potentialDep, matches.length);
+            }
+          }
+        }
+        
+        // Also check for alias usage
+        for (const [alias, fullNamespace] of aliases.entries()) {
+          // If code uses the alias, resolve it to the full namespace
+          const aliasPattern = new RegExp(`\\b${alias}\\.\\w+`, 'g');
+          if (aliasPattern.test(content)) {
+            const filesInNamespace = csharpUsingToFilePaths(fullNamespace);
+            
+            for (const potentialDep of filesInNamespace) {
+              if (potentialDep === file) continue;
+              
+              const depInfo = namespaceCache.get(potentialDep);
+              if (!depInfo) continue;
+              
+              const { className } = depInfo;
+              
+              // Check if the class is used with the alias
+              const aliasClassPattern = new RegExp(`\\b${alias}\\.${className}\\b`, 'g');
+              const matches = content.match(aliasClassPattern);
+              
+              if (matches && matches.length > 0) {
+                fileDeps.set(potentialDep, (fileDeps.get(potentialDep) || 0) + matches.length);
+              }
             }
           }
         }
