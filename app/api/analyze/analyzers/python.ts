@@ -183,16 +183,11 @@ export const pythonAnalyzer: LanguageAnalyzer = {
       const fileDir = path.dirname(file);
       const depCountMap = new Map<string, number>();
       
-      console.log(`Processing ${file}, found ${fileCounts.size} imports`);
-      
       for (const [modulePath, count] of fileCounts.entries()) {
         const resolvedFile = pythonModuleToFilePath(modulePath, fileDir, pythonFiles);
         
         if (resolvedFile) {
-          console.log(`  ${modulePath} -> ${resolvedFile} (count: ${count})`);
           depCountMap.set(resolvedFile, count);
-        } else {
-          console.log(`  ${modulePath} -> NOT RESOLVED`);
         }
       }
       

@@ -8,6 +8,7 @@ const SAMPLE_PROJECTS = [
   { name: "JavaScript | TODOMVC", url: "https://github.com/tastejs/todomvc.git", emoji: "📜" }, 
   { name: "Python | Flask", url: "https://github.com/pallets/flask.git", emoji: "🐍" },
   { name: "Python | FastAPI", url: "https://github.com/fastapi/fastapi", emoji: "🐍" },
+  { name: "Java | SpringPetclinic", url: "https://github.com/spring-projects/spring-petclinic", emoji: "☕" },
   { name: "Java | SpringBoot", url: "https://github.com/spring-projects/spring-boot", emoji: "☕", disabled: true },
   { name: "Go | Go", url: "https://github.com/golang/go/tree/master", emoji: "🎯", disabled: true },
 ];

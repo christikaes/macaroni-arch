@@ -2,13 +2,15 @@ export type { LanguageAnalyzer } from "./types";
 export { jsAnalyzer } from "./javascript";
 export { pythonAnalyzer } from "./python";
 export { cppAnalyzer } from "./cpp";
-export { javaAnalyzer, goAnalyzer, rustAnalyzer, csharpAnalyzer } from "./placeholders";
+export { javaAnalyzer } from "./java";
+export { goAnalyzer, rustAnalyzer, csharpAnalyzer } from "./placeholders";
 
 import { LanguageAnalyzer } from "./types";
 import { jsAnalyzer } from "./javascript";
 import { pythonAnalyzer } from "./python";
 import { cppAnalyzer } from "./cpp";
-import { javaAnalyzer, goAnalyzer, rustAnalyzer, csharpAnalyzer } from "./placeholders";
+import { javaAnalyzer } from "./java";
+import { goAnalyzer, rustAnalyzer, csharpAnalyzer } from "./placeholders";
 
 // Analyzer registry
 export const analyzers: LanguageAnalyzer[] = [

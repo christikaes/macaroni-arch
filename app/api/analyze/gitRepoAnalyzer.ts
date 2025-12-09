@@ -7,6 +7,7 @@ import * as os from "os";
 import { getAnalyzer } from "./analyzers";
 import { calculateComplexity } from "./analyzers/javascript";
 import { calculatePythonComplexity } from "./analyzers/python";
+import { calculateJavaComplexity } from "./analyzers/java";
 import { CODE_EXTENSIONS, EXCLUDED_DIRS } from "./analyzers/constants";
 
 const execAsync = promisify(exec);
@@ -29,7 +30,6 @@ async function cloneAndAnalyze(
   
   try {
     // Clone repository (shallow clone for speed, single branch, no tags)
-    console.log(`Cloning repository: ${repoUrl}`);
     onProgress?.("Cloning repository... 0%");
     
     // Use spawn to capture progress from git clone
@@ -147,16 +147,11 @@ export async function analyzeGitRepo(
     const totalFiles = Array.from(filesByAnalyzer.values()).reduce((sum, arr) => sum + arr.length, 0);
     const skipDetailedAnalysis = totalFiles > MAX_FILES_FOR_DETAILED_ANALYSIS;
     
-    if (skipDetailedAnalysis) {
-      console.log(`Large repository (${totalFiles} files), using faster analysis mode`);
-    }
-    
     for (const [_analyzerKey, groupFiles] of filesByAnalyzer.entries()) {
       const analyzer = fileAnalyzerMap.get(groupFiles[0]);
       if (!analyzer) continue;
       
       const languageName = analyzer.extensions[0].toUpperCase();
-      console.log(`\nAnalyzing group with ${groupFiles.length} files`);
       onProgress?.(`Analyzing ${groupFiles.length} ${languageName} files...`);
       
       // For large repos, only do basic dependency analysis (skip import counting)
@@ -206,12 +201,16 @@ export async function analyzeGitRepo(
         const ext = path.extname(file).toLowerCase();
         const jsExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
         const pythonExtensions = ['.py'];
+        const javaExtensions = ['.java'];
         
         if (jsExtensions.includes(ext)) {
           complexity = calculateComplexity(content, file);
         } else if (pythonExtensions.includes(ext)) {
           const fullPath = path.join(tmpDir, file);
           complexity = await calculatePythonComplexity(fullPath);
+        } else if (javaExtensions.includes(ext)) {
+          const fullPath = path.join(tmpDir, file);
+          complexity = calculateJavaComplexity(fullPath);
         }
         
         fileData[file] = {

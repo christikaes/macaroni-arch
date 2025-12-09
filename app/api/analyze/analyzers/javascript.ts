@@ -355,8 +355,6 @@ export function calculateComplexity(content: string, filePath?: string): number 
     
     traverse(ast);
     
-    console.log(`Complexity for ${filePath}: total=${functionComplexities.reduce((sum, fn) => sum + fn.complexity, 0)}, functions=${functionComplexities.length}`);
-    
     // Sum up all function complexities to get total file complexity
     const totalComplexity = functionComplexities.reduce((sum, fn) => sum + fn.complexity, 0);
     

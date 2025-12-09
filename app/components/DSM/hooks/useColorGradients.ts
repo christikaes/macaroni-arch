@@ -9,6 +9,11 @@ export function useColorGradients(
   const getDependencyColor = useCallback((count: number): string => {
     if (count === 0) return 'rgb(255, 255, 255)';
     
+    // Handle case where all dependencies have the same count
+    if (minDeps === maxDeps) {
+      return 'rgb(59, 130, 246)'; // Return base blue color
+    }
+    
     const normalized = (count - minDeps) / (maxDeps - minDeps);
     
     // Blue (59, 130, 246) -> Purple (147, 51, 234)
