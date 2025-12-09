@@ -20,24 +20,43 @@ export async function GET(request: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let isClosed = false;
+
       const sendProgress = (message: string) => {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "progress", message })}\n\n`)
-        );
+        if (isClosed) return;
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "progress", message })}\n\n`)
+          );
+        } catch (error) {
+          isClosed = true;
+        }
       };
 
       const sendError = (error: string) => {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "error", error })}\n\n`)
-        );
-        controller.close();
+        if (isClosed) return;
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "error", error })}\n\n`)
+          );
+          controller.close();
+          isClosed = true;
+        } catch (err) {
+          isClosed = true;
+        }
       };
 
       const sendComplete = (data: DSMData) => {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "complete", data })}\n\n`)
-        );
-        controller.close();
+        if (isClosed) return;
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: "complete", data })}\n\n`)
+          );
+          controller.close();
+          isClosed = true;
+        } catch (error) {
+          isClosed = true;
+        }
       };
 
       try {

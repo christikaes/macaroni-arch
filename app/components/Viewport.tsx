@@ -10,20 +10,14 @@ interface ViewportProps {
 
 export default function Viewport({ children, isPending = false }: ViewportProps) {
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 200px)" }}>
+    <div className="flex flex-col relative" style={{ height: "calc(100vh - 200px)" }}>
       <TransformWrapper
         initialScale={0.1}
         minScale={0.1}
         maxScale={3}
       >
         {({ zoomIn, zoomOut, resetTransform }) => (
-          <div className="flex flex-col h-full">
-            {/* Zoom controls */}
-            <div className="flex gap-2 mb-2 p-2 bg-gray-100 rounded">
-              <button onClick={() => zoomOut()} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">-</button>
-              <button onClick={() => resetTransform()} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">Fit</button>
-              <button onClick={() => zoomIn()} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">+</button>
-            </div>
+          <div className="flex flex-col h-full relative">
             <TransformComponent
               wrapperStyle={{ 
                 opacity: isPending ? 0.6 : 1, 
@@ -34,6 +28,12 @@ export default function Viewport({ children, isPending = false }: ViewportProps)
             >
               {children}
             </TransformComponent>
+            {/* Zoom controls */}
+            <div className="absolute bottom-4 right-4 flex gap-1">
+              <button onClick={() => zoomOut()} className="px-2 py-1 text-xs bg-white border rounded hover:bg-gray-50 shadow-sm">-</button>
+              <button onClick={() => resetTransform()} className="px-2 py-1 text-xs bg-white border rounded hover:bg-gray-50 shadow-sm">Fit</button>
+              <button onClick={() => zoomIn()} className="px-2 py-1 text-xs bg-white border rounded hover:bg-gray-50 shadow-sm">+</button>
+            </div>
           </div>
         )}
       </TransformWrapper>

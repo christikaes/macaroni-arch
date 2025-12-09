@@ -12,7 +12,7 @@ export default function AnalyzePage() {
   const [dsmData, setDsmData] = useState<DSMData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progressMessage, setProgressMessage] = useState<string>("");
+  const [progressMessages, setProgressMessages] = useState<string[]>([]);
 
   useEffect(() => {
     if (repoUrl) {
@@ -23,7 +23,7 @@ export default function AnalyzePage() {
   const fetchDSMData = async (url: string) => {
     setLoading(true);
     setError(null);
-    setProgressMessage("");
+    setProgressMessages([]);
 
     const eventSource = new EventSource(`/api/analyze?repoUrl=${encodeURIComponent(url)}`);
 
@@ -31,7 +31,11 @@ export default function AnalyzePage() {
       const data = JSON.parse(event.data);
 
       if (data.type === "progress") {
-        setProgressMessage(data.message);
+        setProgressMessages(prev => {
+          const newMessages = [...prev, data.message];
+          // Keep only last 5 messages to avoid overwhelming the UI
+          return newMessages.slice(-5);
+        });
       } else if (data.type === "complete") {
         setDsmData(data.data);
         setLoading(false);
@@ -95,10 +99,18 @@ export default function AnalyzePage() {
             <p className="text-xl font-semibold text-gray-700">
               Analyzing repository...
             </p>
-            {progressMessage && (
-              <p className="mt-4 text-lg text-orange-600 font-medium animate-pulse">
-                {progressMessage}
-              </p>
+            {progressMessages.length > 0 && (
+              <div className="mt-4 space-y-2 max-h-40 overflow-y-auto">
+                {progressMessages.map((msg, idx) => (
+                  <p 
+                    key={idx} 
+                    className="text-sm text-orange-600 font-medium"
+                    style={{ opacity: 0.5 + (idx / progressMessages.length) * 0.5 }}
+                  >
+                    {msg}
+                  </p>
+                ))}
+              </div>
             )}
             <p className="mt-2 text-gray-500">
               Untangling the spaghetti code!
