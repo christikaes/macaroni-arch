@@ -9,13 +9,19 @@ export const JS_EXTENSIONS = ['ts', 'tsx', 'js', 'jsx', 'vue'] as const;
 export const PYTHON_EXTENSIONS = ['py'] as const;
 
 // C++ file extensions
-export const CPP_EXTENSIONS = ['cpp', 'c', 'h'] as const;
+export const CPP_EXTENSIONS = ['cpp', 'c', 'h', 'hpp', 'cc', 'cxx', 'hxx', 'hh'] as const;
 
 // Java file extensions
 export const JAVA_EXTENSIONS = ['java'] as const;
 
-// Other supported extensions
-export const OTHER_EXTENSIONS = ['cs', 'go', 'rs', 'rb', 'php', 'swift', 'kt', 'scala'] as const;
+// C# file extensions
+export const CSHARP_EXTENSIONS = ['cs'] as const;
+
+// Go file extensions
+export const GO_EXTENSIONS = ['go'] as const;
+
+// Other supported extensions (placeholder analyzers)
+export const OTHER_EXTENSIONS = ['rs', 'rb', 'php', 'swift', 'kt', 'scala'] as const;
 
 // All supported code file extensions (derived from language-specific extensions)
 export const CODE_EXTENSIONS = [
@@ -23,6 +29,8 @@ export const CODE_EXTENSIONS = [
   ...PYTHON_EXTENSIONS.map(ext => `.${ext}`),
   ...CPP_EXTENSIONS.map(ext => `.${ext}`),
   ...JAVA_EXTENSIONS.map(ext => `.${ext}`),
+  ...CSHARP_EXTENSIONS.map(ext => `.${ext}`),
+  ...GO_EXTENSIONS.map(ext => `.${ext}`),
   ...OTHER_EXTENSIONS.map(ext => `.${ext}`),
 ] as const;
 

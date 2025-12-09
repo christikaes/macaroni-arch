@@ -17,7 +17,7 @@ const execAsync = promisify(exec);
 export type ProgressCallback = (message: string) => void;
 
 // Performance configuration
-const MAX_FILES_FOR_DETAILED_ANALYSIS = 100; // Skip individual file analysis if repo is too large
+const MAX_FILES_FOR_DETAILED_ANALYSIS = 300; // Skip individual file analysis if repo is too large
 const CLONE_DEPTH = 1; // Shallow clone depth
 
 /**

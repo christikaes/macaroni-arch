@@ -1,14 +1,14 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import DSM from "~/components/DSM/index";
 import { DSMData } from "~/types/dsm";
 import Link from "next/link";
 import { calculateMacaroniScore, MacaroniScore } from "~/api/analyze/macaroniScore";
 import { getPastaIcon } from "~/components/icons/PastaIcons";
 
-export default function AnalyzePage() {
+function AnalyzePageContent() {
   const searchParams = useSearchParams();
   const repoUrl = searchParams.get("repo");
   const [dsmData, setDsmData] = useState<DSMData | null>(null);
@@ -163,5 +163,20 @@ export default function AnalyzePage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AnalyzePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="mb-4 text-6xl">🍝</div>
+          <p className="text-xl font-semibold text-yellow-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <AnalyzePageContent />
+    </Suspense>
   );
 }

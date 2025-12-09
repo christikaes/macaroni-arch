@@ -19,6 +19,7 @@ const SAMPLE_PROJECTS = [
   { name: "Java | SpringPetclinic", url: "https://github.com/spring-projects/spring-petclinic" },
   { name: "C# | eShopOnWeb", url: "https://github.com/dotnet-architecture/eShopOnWeb" },
   { name: "Go | Gorilla Mux", url: "https://github.com/gorilla/mux" },
+  { name: "C++ | SFML", url: "https://github.com/SFML/SFML" },
   // { name: "Go | Docker CLI", url: "https://github.com/docker/cli" },
   // { name: "Java | SpringBoot", url: "https://github.com/spring-projects/spring-boot", disabled: true },
 ];
