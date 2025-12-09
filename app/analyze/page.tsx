@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import HierarchicalDSM from "~/components/HierarchicalDSM";
+import HierarchicalDSM from "~/components/HierarchicalDSM.old";
 import { DSMData } from "~/types/dsm";
 import Link from "next/link";
 
@@ -63,7 +63,7 @@ export default function AnalyzePage() {
               Macaroni Arch
             </Link>
             <h1 className="text-4xl font-bold text-yellow-400">
-              Design Structure Matrix
+              Macaroni Architecture Analysis of: {repoUrl ? repoUrl.split('/').pop()?.replace('.git', '') || repoUrl : 'Repository'}
             </h1>
             {repoUrl && (
               <p className="mt-2 text-sm text-gray-400">

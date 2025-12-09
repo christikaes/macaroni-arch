@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useMemo, Fragment, useCallback, useTransition } from "react";
+import { useState, useMemo, Fragment, useCallback, useTransition, useRef, useEffect } from "react";
 import { DSMData, DisplayItem } from "~/types/dsm";
-import Viewport from "./Viewport";
 
 interface DSMMatrixProps {
   data: DSMData;
@@ -12,8 +11,17 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
   const { files, displayItems: serverDisplayItems, fileList } = data;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
-  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
+  const [scale, setScale] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanningState, setIsPanningState] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tableRef = useRef<HTMLDivElement>(null);
+  const lastTouchDistance = useRef<number>(0);
+  const lastTouchCenter = useRef<{ x: number; y: number } | null>(null);
+  const isPanning = useRef(false);
+  const lastPanPosition = useRef({ x: 0, y: 0 });
   
+  // Build displayItems with collapse state applied
   const displayItems = useMemo(() => {
     if (!serverDisplayItems) return [];
     
@@ -195,29 +203,239 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     return ancestors;
   }, []);
 
+  // Calculate scale to fit table in viewport (only on initial render)
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current && tableRef.current) {
+        const container = containerRef.current;
+        const table = tableRef.current;
+        
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        const tableWidth = table.scrollWidth;
+        const tableHeight = table.scrollHeight;
+        
+        // Calculate scale to fit both width and height with some padding
+        const scaleX = (containerWidth - 40) / tableWidth;
+        const scaleY = (containerHeight - 40) / tableHeight;
+        const newScale = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
+        
+        setScale(newScale);
+      }
+    };
+
+    // Initial calculation only
+    updateScale();
+
+    // Update only on container resize, not on table content changes
+    const resizeObserver = new ResizeObserver(updateScale);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []); // Empty deps - only run on mount
+
+  // Add gesture handlers
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Pinch gesture
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        lastTouchDistance.current = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+        lastTouchCenter.current = {
+          x: (touch1.clientX + touch2.clientX) / 2,
+          y: (touch1.clientY + touch2.clientY) / 2,
+        };
+      } else if (e.touches.length === 1) {
+        // Pan gesture
+        isPanning.current = true;
+        setIsPanningState(true);
+        lastPanPosition.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+        };
+      }
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Pinch zoom
+        e.preventDefault();
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const currentDistance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+
+        if (lastTouchDistance.current > 0) {
+          const delta = currentDistance / lastTouchDistance.current;
+          setScale(prev => Math.max(0.1, Math.min(5, prev * delta)));
+        }
+
+        lastTouchDistance.current = currentDistance;
+      } else if (e.touches.length === 1 && isPanning.current) {
+        // Pan
+        e.preventDefault();
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - lastPanPosition.current.x;
+        const deltaY = touch.clientY - lastPanPosition.current.y;
+        
+        setPan(prev => ({
+          x: prev.x + deltaX,
+          y: prev.y + deltaY,
+        }));
+        
+        lastPanPosition.current = {
+          x: touch.clientX,
+          y: touch.clientY,
+        };
+      }
+    };
+
+    const handleTouchEnd = () => {
+      lastTouchDistance.current = 0;
+      lastTouchCenter.current = null;
+      isPanning.current = false;
+      setIsPanningState(false);
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        // Zoom with ctrl/cmd + wheel
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        setScale(prev => Math.max(0.1, Math.min(5, prev * delta)));
+      } else {
+        // Pan with wheel
+        e.preventDefault();
+        setPan(prev => ({
+          x: prev.x - e.deltaX,
+          y: prev.y - e.deltaY,
+        }));
+      }
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      // Middle mouse button or shift + left click for panning
+      if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+        e.preventDefault();
+        isPanning.current = true;
+        setIsPanningState(true);
+        lastPanPosition.current = { x: e.clientX, y: e.clientY };
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isPanning.current) {
+        e.preventDefault();
+        const deltaX = e.clientX - lastPanPosition.current.x;
+        const deltaY = e.clientY - lastPanPosition.current.y;
+        
+        setPan(prev => ({
+          x: prev.x + deltaX,
+          y: prev.y + deltaY,
+        }));
+        
+        lastPanPosition.current = { x: e.clientX, y: e.clientY };
+      }
+    };
+
+    const handleMouseUp = () => {
+      isPanning.current = false;
+      setIsPanningState(false);
+    };
+
+    container.addEventListener('touchstart', handleTouchStart);
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd);
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    container.addEventListener('mousedown', handleMouseDown);
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  // Add zoom controls
+  const handleZoomIn = () => setScale(prev => Math.min(prev * 1.2, 5));
+  const handleZoomOut = () => setScale(prev => Math.max(prev * 0.8, 0.1));
+  const handleResetZoom = () => {
+    if (containerRef.current && tableRef.current) {
+      const container = containerRef.current;
+      const table = tableRef.current;
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      const tableWidth = table.scrollWidth;
+      const tableHeight = table.scrollHeight;
+      const scaleX = (containerWidth - 40) / tableWidth;
+      const scaleY = (containerHeight - 40) / tableHeight;
+      setScale(Math.min(scaleX, scaleY, 1));
+      setPan({ x: 0, y: 0 });
+    }
+  };
+
   return (
-    <Viewport isPending={isPending}>
-      <table className="border-collapse" style={{ userSelect: 'none' }}>
-        <thead>
-          <tr>
-            {Array.from({ length: numHierarchyColumns }).map((_, idx) => (
+    <div className="flex flex-col" style={{ height: "calc(100vh - 200px)" }}>
+      {/* Zoom controls */}
+      <div className="flex gap-2 mb-2 p-2 bg-gray-100 rounded">
+        <button onClick={handleZoomOut} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">-</button>
+        <button onClick={handleResetZoom} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">Fit</button>
+        <button onClick={handleZoomIn} className="px-3 py-1 bg-white border rounded hover:bg-gray-50">+</button>
+        <span className="px-3 py-1 text-sm text-gray-600">{Math.round(scale * 100)}%</span>
+      </div>
+      <div 
+        ref={containerRef} 
+        className="flex-1 overflow-hidden flex items-center justify-center" 
+        style={{ opacity: isPending ? 0.6 : 1, transition: "opacity 0.2s" }}
+      >
+        <div 
+          ref={tableRef}
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+            transformOrigin: "center center",
+            cursor: isPanningState ? 'grabbing' : 'grab'
+          }}
+        >
+          <table className="border-collapse">
+          <thead>
+            <tr>
+              {Array.from({ length: numHierarchyColumns }).map((_, idx) => (
+                <th
+                  key={`header-${idx}`}
+                  className={`sticky top-0 z-20 bg-yellow-100 border border-yellow-400 text-xs font-semibold text-gray-700`}
+                  style={{ left: `${idx * 20}px`, width: "20px", padding: "0" }}
+                >
+                </th>
+              ))}
               <th
-                key={`header-${idx}`}
-                className={`sticky top-0 z-20 bg-yellow-100 border border-yellow-400 text-xs font-semibold text-gray-700`}
-                style={{ left: `${idx * 20}px`, width: "20px", padding: "0" }}
+                key="header-id"
+                className="sticky top-0 z-20 bg-yellow-100 border border-yellow-400 border-r border-r-black text-xs font-semibold text-gray-700"
+                style={{ left: `${numHierarchyColumns * 20}px`, width: "30px", padding: "0" }}
               >
               </th>
-            ))}
-            <th
-              key="header-id"
-              className="sticky top-0 z-20 bg-yellow-100 border border-yellow-400 border-r border-r-black text-xs font-semibold text-gray-700"
-              style={{ left: `${numHierarchyColumns * 20}px`, width: "30px", padding: "0" }}
-            >
-            </th>
-            {matrixItems.map((item, idx) => (
-              <th
-                key={idx}
-                className="sticky top-0 border border-yellow-400 bg-yellow-100 text-xs font-semibold text-gray-700"
+              {matrixItems.map((item, idx) => (
+                <th
+                  key={idx}
+                  className="sticky top-0 border border-yellow-400 bg-yellow-100 text-xs font-semibold text-gray-700"
                   style={{ width: "30px", padding: "4px 2px", height: "120px" }}
                   title={item.path}
                 >
@@ -374,23 +592,19 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                     if (isLastCol) borderClasses.push("border-r-2 border-r-black");
                   }
 
-                  const isHovered = hoveredCell && (hoveredCell.row === rowIdx || hoveredCell.col === colIdx);
-
                   return (
                     <td
                       key={colIdx}
-                      onMouseEnter={() => setHoveredCell({ row: rowIdx, col: colIdx })}
-                      onMouseLeave={() => setHoveredCell(null)}
-                      className={`border border-yellow-400 text-center text-xs ${
-                        isHovered
-                          ? "bg-blue-200"
+                      className={`border border-yellow-400 p-2 text-center text-xs ${
+                        isMainDiagonal
+                          ? "bg-gray-300"
                           : hasDependency
                           ? isCyclical
-                            ? "text-red-600 font-bold cursor-pointer"
-                            : "text-orange-600 font-semibold cursor-pointer"
-                          : ""
-                      } bg-white ${borderClasses.join(" ")}`}
-                      style={{ width: "30px", height: "30px", padding: "0", fontSize: "10px" }}
+                            ? "bg-orange-400 text-red-600 font-bold hover:bg-orange-500 cursor-pointer"
+                            : "bg-orange-400 text-white font-semibold hover:bg-orange-500 cursor-pointer"
+                          : "bg-white hover:bg-yellow-50"
+                      } ${borderClasses.join(" ")}`}
+                      style={{ width: "30px", height: "30px", padding: "2px", fontSize: "10px" }}
                       title={
                         isMainDiagonal
                           ? `${rowItem.path}${complexityScore !== undefined ? ` - Complexity: ${complexityScore}` : ''}`
@@ -399,9 +613,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                           : ''
                       }
                     >
-                      <div className="flex items-center justify-center w-full h-full">
-                        {isMainDiagonal && complexityScore !== undefined ? complexityScore : (!isMainDiagonal && hasDependency ? depCount : "")}
-                      </div>
+                      {isMainDiagonal && complexityScore !== undefined ? complexityScore : (!isMainDiagonal && hasDependency ? depCount : "")}
                     </td>
                   );
                 })}
@@ -409,6 +621,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
             ))}
           </tbody>
         </table>
-    </Viewport>
+        </div>
+      </div>
+    </div>
   );
 }

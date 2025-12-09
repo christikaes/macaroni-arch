@@ -4,9 +4,6 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { MultiGrid } from "react-virtualized";
 import type { DSMData, DisplayItem } from "~/types/dsm";
 
-// Configuration constants
-const ZOOM_THRESHOLD_SHOW_HEADERS = 0.8; // Zoom level at which headers become visible
-
 interface CellProps {
   columnIndex: number;
   rowIndex: number;
@@ -21,22 +18,14 @@ interface DSMMatrixProps {
 export default function DSMMatrix({ data }: DSMMatrixProps) {
   const { files, displayItems: serverDisplayItems, fileList } = data;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const [viewportSize, setViewportSize] = useState({ width: 1000, height: 800 });
-  const [zoom, setZoom] = useState(0.1);
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
   const gridRef = useRef<MultiGrid>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef({ scrollLeft: 0, scrollTop: 0 });
-  const zoomRef = useRef(zoom);
-  const recomputeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const zoomThrottleRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingZoomRef = useRef<number | null>(null);
   
-  // Update zoom ref whenever zoom changes
-  useEffect(() => {
-    zoomRef.current = zoom;
-  }, [zoom]);
+  // Always use full zoom (1.0) - no zooming functionality
+  const zoom = 1.0;
 
   // Build displayItems with collapse state applied
   const displayItems = useMemo(() => {
@@ -172,38 +161,9 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
   
   const { CELL_SIZE, HEADER_CELL_SIZE, PATH_CELL_WIDTH, ID_CELL_WIDTH } = cellSizes;
 
-  // Calculate minimum zoom to fit entire matrix in viewport
-  const minZoom = useMemo(() => {
-    // Account for margins and controls: 100px margin + 250px for header/controls
-    const availableWidth = viewportSize.width - 100;
-    const availableHeight = viewportSize.height - 250;
-    
-    // Calculate total matrix size at zoom=1
-    const totalWidth = 500 + 50 + (matrixItems.length * 40); // path + id + matrix columns
-    const totalHeight = 100 + (matrixItems.length * 40); // header + matrix rows
-    
-    // Calculate zoom needed to fit
-    const zoomForWidth = availableWidth / totalWidth;
-    const zoomForHeight = availableHeight / totalHeight;
-    
-    // Use the smaller zoom to ensure both dimensions fit, but never less than the initial zoom (0.1)
-    // This ensures the minimum zoom is based on the default zoom
-    return Math.max(0.1, Math.min(zoomForWidth, zoomForHeight));
-  }, [matrixItems.length, viewportSize]);
-
-  // Update zoom to minZoom if it's less (when matrix shrinks)
-  if (zoom < minZoom) {
-    setZoom(minZoom);
-  }
-
-  // Reset grid cache when zoom or items change, but preserve scroll position
+  // Reset grid cache when items change, but preserve scroll position
   useEffect(() => {
     if (gridRef.current) {
-      // Clear any pending recompute
-      if (recomputeTimeoutRef.current) {
-        clearTimeout(recomputeTimeoutRef.current);
-      }
-      
       // Store current scroll position before recomputing
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const grid = gridRef.current as any;
@@ -211,34 +171,21 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       if (state.scrollLeft !== undefined) scrollPositionRef.current.scrollLeft = state.scrollLeft;
       if (state.scrollTop !== undefined) scrollPositionRef.current.scrollTop = state.scrollTop;
       
-      // Debounce recompute during zoom for better performance
-      const delay = 50; // Increased delay for smoother zoom
+      gridRef.current.recomputeGridSize();
       
-      recomputeTimeoutRef.current = setTimeout(() => {
+      // Restore scroll position after recompute
+      requestAnimationFrame(() => {
         if (gridRef.current) {
-          gridRef.current.recomputeGridSize();
-          
-          // Restore scroll position after recompute
-          requestAnimationFrame(() => {
-            if (gridRef.current) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const grid = gridRef.current as any;
-              // MultiGrid uses forceUpdateGrids to sync scroll
-              if (grid._bottomRightGrid) {
-                grid._bottomRightGrid.scrollToPosition(scrollPositionRef.current);
-              }
-            }
-          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const grid = gridRef.current as any;
+          // MultiGrid uses forceUpdateGrids to sync scroll
+          if (grid._bottomRightGrid) {
+            grid._bottomRightGrid.scrollToPosition(scrollPositionRef.current);
+          }
         }
-      }, delay);
+      });
     }
-    
-    return () => {
-      if (recomputeTimeoutRef.current) {
-        clearTimeout(recomputeTimeoutRef.current);
-      }
-    };
-  }, [zoom, matrixItems]);
+  }, [matrixItems]);
 
   // Helper to get all ancestor folder paths for an item (from deepest to shallowest)
   const ancestorCacheRef = useRef(new Map<string, string[]>());
@@ -276,7 +223,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     const pathParts = item.path.split("/");
     
     return (
-      <div className="flex items-center whitespace-nowrap" style={{ fontFamily: "var(--font-geist-mono)", fontSize: zoom < ZOOM_THRESHOLD_SHOW_HEADERS ? "0" : zoom < 0.8 ? "10px" : "12px" }}>
+      <div className="flex items-center whitespace-nowrap" style={{ fontFamily: "var(--font-geist-mono)", fontSize: "12px" }}>
         {pathParts.map((part, idx) => {
           const folderPath = pathParts.slice(0, idx + 1).join("/");
           const isLast = idx === pathParts.length - 1;
@@ -304,124 +251,19 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
         })}
       </div>
     );
-  }, [collapsed, toggleCollapse, zoom]);
+  }, [collapsed, toggleCollapse]);
 
-  // Handle pinch-to-zoom
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    let lastTouchDistance = 0;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        lastTouchDistance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const currentDistance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-
-        if (lastTouchDistance > 0) {
-          const delta = currentDistance / lastTouchDistance;
-          setZoom(prev => Math.max(minZoom, Math.min(1, prev * delta)));
-        }
-
-        lastTouchDistance = currentDistance;
-      }
-    };
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        
-        // Throttle zoom updates for performance
-        if (!zoomThrottleRef.current) {
-          setZoom(prev => {
-            const newZoom = Math.max(minZoom, Math.min(1, prev * delta));
-            pendingZoomRef.current = newZoom;
-            return newZoom;
-          });
-          
-          zoomThrottleRef.current = setTimeout(() => {
-            zoomThrottleRef.current = null;
-            if (pendingZoomRef.current !== null) {
-              setZoom(pendingZoomRef.current);
-              pendingZoomRef.current = null;
-            }
-          }, 16); // ~60fps
-        } else {
-          // Store pending zoom but don't update state yet
-          pendingZoomRef.current = Math.max(minZoom, Math.min(1, (pendingZoomRef.current ?? zoom) * delta));
-        }
-      }
-    };
-
-    container.addEventListener('touchstart', handleTouchStart);
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('wheel', handleWheel, { passive: false });
-
-    return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('wheel', handleWheel);
-      if (zoomThrottleRef.current) {
-        clearTimeout(zoomThrottleRef.current);
-      }
-    };
-  }, [minZoom, zoom]);
-
-  // Track viewport size
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const updateSize = () => {
-      setViewportSize({
-        width: container.clientWidth,
-        height: container.clientHeight,
-      });
-    };
-
-    // Initial size
-    updateSize();
-
-    // Update on resize
-    const resizeObserver = new ResizeObserver(updateSize);
-    resizeObserver.observe(container);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
-
-  // Cell renderer - uses ref for zoom to avoid recreation
+  // Cell renderer
   const Cell = useCallback(({ columnIndex, rowIndex, key, style }: CellProps) => {
-    const currentZoom = zoomRef.current;
-    const showHeaders = currentZoom >= ZOOM_THRESHOLD_SHOW_HEADERS;
+    const showHeaders = true; // Always show headers
     const pathColIndex = 0;
     const idColIndex = 1;
-    const matrixStartCol = showHeaders ? 2 : 0;
+    const matrixStartCol = 2;
     
-    // Adjust indices when headers are hidden
-    const adjustedRowIndex = showHeaders ? rowIndex : rowIndex + 1;
-    const adjustedColumnIndex = showHeaders ? columnIndex : columnIndex + 2;
+    const adjustedRowIndex = rowIndex;
+    const adjustedColumnIndex = columnIndex;
     
-    // Dynamic border width based on zoom
-    const cellBorderWidth = currentZoom < 0.3 ? 0.5 : currentZoom < ZOOM_THRESHOLD_SHOW_HEADERS ? 1 : 1;
+    const cellBorderWidth = 1;
 
     // Header row (only when headers are visible)
     if (showHeaders && adjustedRowIndex === 0) {
@@ -429,7 +271,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       if (adjustedColumnIndex === pathColIndex) {
         return (
           <div key={key} style={{ ...style, borderWidth: cellBorderWidth }} className="bg-yellow-100 border-gray-300 flex items-center justify-center font-semibold">
-            <span style={{ fontSize: currentZoom < ZOOM_THRESHOLD_SHOW_HEADERS ? "8px" : "10px" }}></span>
+            <span style={{ fontSize: "10px" }}></span>
           </div>
         );
       }
@@ -442,8 +284,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       const item = matrixItems[matrixColIdx];
       return (
         <div key={key} style={{ ...style, borderWidth: cellBorderWidth }} className="bg-yellow-100 border-gray-300 flex items-center justify-center" title={item.path}>
-          <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: currentZoom < ZOOM_THRESHOLD_SHOW_HEADERS ? "8px" : "10px" }}>
-            {currentZoom >= ZOOM_THRESHOLD_SHOW_HEADERS && item.id}
+          <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", fontSize: "10px" }}>
+            {item.id}
           </div>
         </div>
       );
@@ -465,12 +307,12 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       );
     }
 
-    // ID column (only when headers visible)
-    if (showHeaders && adjustedColumnIndex === idColIndex) {
+    // ID column
+    if (adjustedColumnIndex === idColIndex) {
       return (
         <div key={key} style={{ ...style, borderWidth: cellBorderWidth, borderRightWidth: 2 }} className="bg-yellow-50 border-gray-300 border-r-black flex items-center justify-center text-xs px-1" title={rowItem.path}>
-          <span style={{ fontSize: currentZoom < ZOOM_THRESHOLD_SHOW_HEADERS ? "0" : currentZoom < 0.8 ? "8px" : "10px" }}>
-            {currentZoom >= ZOOM_THRESHOLD_SHOW_HEADERS && rowItem.id}
+          <span style={{ fontSize: "10px" }}>
+            {rowItem.id}
           </span>
         </div>
       );
@@ -508,8 +350,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     const colAncestors = getAncestorFolders(colItem);
     const commonAncestors = rowAncestors.filter(ancestor => colAncestors.includes(ancestor));
     
-    // Dynamic border thickness based on zoom
-    const borderWidth = currentZoom < 0.3 ? 1 : 2;
+    const borderWidth = 2;
     const borderClasses: string[] = [];
     
     if (commonAncestors.length > 0) {
@@ -589,16 +430,16 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
           setTooltip(null);
         }}
       >
-        <span style={{ fontSize: currentZoom < 0.6 ? "0" : currentZoom < 0.8 ? "8px" : "10px" }}>
+        <span style={{ fontSize: "10px" }}>
           {isMainDiagonal && complexityScore !== undefined ? complexityScore : (!isMainDiagonal && hasDependency ? depCount : "")}
         </span>
       </div>
     );
   }, [matrixItems, getDependencyCount, fileList, files, renderPathWithConnectors, getAncestorFolders, getDependencyColor, hoveredCell, tooltip]);
 
-  const showHeaders = zoom >= ZOOM_THRESHOLD_SHOW_HEADERS;
-  const rowCount = matrixItems.length + (showHeaders ? 1 : 0); // +1 for header when visible
-  const columnCount = matrixItems.length + (showHeaders ? 2 : 0); // path col + ID col + matrix cols when visible
+  const showHeaders = true;
+  const rowCount = matrixItems.length + 1; // +1 for header
+  const columnCount = matrixItems.length + 2; // path col + ID col + matrix cols
   
   // Calculate actual width needed for the grid
   const gridWidth = (showHeaders ? PATH_CELL_WIDTH + ID_CELL_WIDTH : 0) + (matrixItems.length * CELL_SIZE);
@@ -626,24 +467,22 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       )}
       <div ref={containerRef} className="flex-1 overflow-hidden">
         <MultiGrid
-          key={`grid-${zoom >= ZOOM_THRESHOLD_SHOW_HEADERS ? 'fixed' : 'nonfixed'}`}
+          key="grid-fixed"
           ref={gridRef}
           columnCount={columnCount}
           columnWidth={({ index }: { index: number }) => {
-            if (zoom >= ZOOM_THRESHOLD_SHOW_HEADERS) {
-              if (index === 0) return PATH_CELL_WIDTH;
-              if (index === 1) return ID_CELL_WIDTH;
-            }
+            if (index === 0) return PATH_CELL_WIDTH;
+            if (index === 1) return ID_CELL_WIDTH;
             return CELL_SIZE;
           }}
-          fixedColumnCount={zoom >= ZOOM_THRESHOLD_SHOW_HEADERS ? 2 : 0}
-          fixedRowCount={zoom >= ZOOM_THRESHOLD_SHOW_HEADERS ? 1 : 0}
+          fixedColumnCount={2}
+          fixedRowCount={1}
           height={actualHeight}
           rowCount={rowCount}
-          rowHeight={({ index }: { index: number }) => (zoom >= ZOOM_THRESHOLD_SHOW_HEADERS && index === 0) ? HEADER_CELL_SIZE : CELL_SIZE}
+          rowHeight={({ index }: { index: number }) => index === 0 ? HEADER_CELL_SIZE : CELL_SIZE}
           width={actualWidth}
           overscanRowCount={10}
-          overscanColumnCount={5}
+          overscanColumnColumn={5}
           cellRenderer={Cell}
           classNameTopLeftGrid="bg-yellow-100"
           classNameTopRightGrid="bg-yellow-100"
