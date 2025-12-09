@@ -1,10 +1,10 @@
-# Macaroni Matrix 🍝
+# Macaroni Architecture 🍝
 
 A code dependency visualization tool using Design Structure Matrix (DSM) to help you understand and analyze your codebase structure.
 
-## What is Macaroni Matrix?
+## What is Macaroni Architecture?
 
-Macaroni Matrix visualizes code dependencies in a hierarchical Design Structure Matrix format, making it easy to:
+Macaroni Architecture visualizes code dependencies in a hierarchical Design Structure Matrix format, making it easy to:
 - Identify circular dependencies
 - Understand module coupling
 - View cyclomatic complexity scores

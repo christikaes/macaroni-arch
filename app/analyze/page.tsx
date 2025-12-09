@@ -5,11 +5,14 @@ import { useEffect, useState } from "react";
 import DSM from "~/components/DSM/index";
 import { DSMData } from "~/types/dsm";
 import Link from "next/link";
+import { calculateMacaroniScore, MacaroniScore } from "~/api/analyze/macaroniScore";
+import { getPastaIcon } from "~/components/icons/PastaIcons";
 
 export default function AnalyzePage() {
   const searchParams = useSearchParams();
   const repoUrl = searchParams.get("repo");
   const [dsmData, setDsmData] = useState<DSMData | null>(null);
+  const [macaroniScore, setMacaroniScore] = useState<MacaroniScore | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progressMessages, setProgressMessages] = useState<string[]>([]);
@@ -38,6 +41,7 @@ export default function AnalyzePage() {
         });
       } else if (data.type === "complete") {
         setDsmData(data.data);
+        setMacaroniScore(calculateMacaroniScore(data.data));
         setLoading(false);
         eventSource.close();
       } else if (data.type === "error") {
@@ -59,7 +63,7 @@ export default function AnalyzePage() {
       <div className="w-full">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between px-8 pt-6">
-          <div>
+          <div className="flex-1">
             <Link
               href="/"
               className="mb-4 inline-flex items-center text-sm text-yellow-400 hover:text-yellow-300"
@@ -75,6 +79,30 @@ export default function AnalyzePage() {
               </p>
             )}
           </div>
+          
+          {/* Macaroni Score Display */}
+          {macaroniScore && !loading && !error && (() => {
+            const PastaIcon = getPastaIcon(macaroniScore.level);
+            return (
+              <div className="flex flex-col items-end">
+                <div className="rounded-lg border border-yellow-300 bg-yellow-50/80 px-5 py-3 shadow-sm">
+                  <div className="text-center">
+                    <div className="flex items-center gap-2">
+                      <PastaIcon className="w-8 h-8 text-yellow-700" />
+                      <div className="text-left">
+                        <p className="text-xl font-bold text-yellow-700">
+                          {macaroniScore.level}
+                        </p>
+                        <p className="text-lg font-semibold text-gray-700">
+                          {macaroniScore.score}/100
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Content */}
