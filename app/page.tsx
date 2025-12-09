@@ -13,10 +13,11 @@ import {
 
 const SAMPLE_PROJECTS = [
   { name: "JS | Redux", url: "https://github.com/reduxjs/redux" }, 
-  { name: "JS | TODOMVC", url: "https://github.com/tastejs/todomvc.git" }, 
+  // { name: "JS | TODOMVC", url: "https://github.com/tastejs/todomvc.git" }, 
   { name: "PY | Flask", url: "https://github.com/pallets/flask.git" },
-  { name: "PY | FastAPI", url: "https://github.com/fastapi/fastapi" },
+  // { name: "PY | FastAPI", url: "https://github.com/fastapi/fastapi" },
   { name: "Java | SpringPetclinic", url: "https://github.com/spring-projects/spring-petclinic" },
+  { name: "C# | eShopOnWeb", url: "https://github.com/dotnet-architecture/eShopOnWeb" },
   // { name: "Java | SpringBoot", url: "https://github.com/spring-projects/spring-boot", disabled: true },
   // { name: "Go | Go", url: "https://github.com/golang/go/tree/master", disabled: true },
 ];

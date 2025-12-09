@@ -26,12 +26,3 @@ export const rustAnalyzer: LanguageAnalyzer = {
     return [];
   }
 };
-
-// C# analyzer (placeholder - to be implemented)
-export const csharpAnalyzer: LanguageAnalyzer = {
-  extensions: ['.cs'],
-  analyze(_filePath: string, _content: string, _allFiles: string[]): string[] {
-    // TODO: Implement C# using analysis
-    return [];
-  }
-};
