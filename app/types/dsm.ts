@@ -6,17 +6,21 @@ export interface FileDependency {
 export interface FileData {
   dependencies: FileDependency[];
   complexity: number;
+  lineCount: number;
 }
 
-export interface TreeNode {
-  name: string;
-  fullPath: string;
+export interface DisplayItem {
+  path: string;
+  displayName: string;
+  indent: number;
   isDirectory: boolean;
-  children?: TreeNode[];
+  fileIndices: number[];
+  id: string;
+  showInMatrix: boolean;
 }
 
 export interface DSMData {
   files: { [fileName: string]: FileData };
-  fileTree: TreeNode[];
-  recommendedModuleTree: TreeNode[];
+  displayItems: DisplayItem[];
+  fileList: string[];
 }

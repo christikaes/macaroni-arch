@@ -1,4 +1,4 @@
-export { LanguageAnalyzer } from "./types";
+export type { LanguageAnalyzer } from "./types";
 export { jsAnalyzer } from "./javascript";
 export { pythonAnalyzer } from "./python";
 export { cppAnalyzer } from "./cpp";

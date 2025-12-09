@@ -60,7 +60,7 @@ export default function AnalyzePage() {
               href="/"
               className="mb-4 inline-flex items-center text-sm text-yellow-400 hover:text-yellow-300"
             >
-              ← Back to Home
+              Macaroni Arch
             </Link>
             <h1 className="text-4xl font-bold text-yellow-400">
               Design Structure Matrix
@@ -71,7 +71,6 @@ export default function AnalyzePage() {
               </p>
             )}
           </div>
-          <div className="text-6xl">🍝</div>
         </div>
 
         {/* Content */}

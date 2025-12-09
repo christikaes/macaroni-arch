@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { DSMData, TreeNode } from "~/types/dsm";
+import { DSMData, DisplayItem } from "~/types/dsm";
 import { analyzeGitRepo } from "./gitRepoAnalyzer";
 
 export async function GET(request: NextRequest) {
@@ -45,54 +45,81 @@ export async function GET(request: NextRequest) {
         const files = await analyzeGitRepo(repoUrl, sendProgress);
         sendProgress("Building file tree...");
         
-        // Build file tree from flat file list
-        const buildFileTree = (fileList: string[]): TreeNode[] => {
-          const root: { [key: string]: any } = {};
+        // Build display items from file list
+        const buildDisplayItems = (fileList: string[]): DisplayItem[] => {
+          const items: DisplayItem[] = [];
+          
+          interface TreeNodeInternal {
+            path: string;
+            name: string;
+            isFile: boolean;
+            children: Map<string, TreeNodeInternal>;
+            fileIndices: Set<number>;
+          }
+          
+          const root: TreeNodeInternal = {
+            path: "",
+            name: "",
+            isFile: false,
+            children: new Map(),
+            fileIndices: new Set(),
+          };
 
-          fileList.forEach((file) => {
+          fileList.forEach((file, idx) => {
             const parts = file.split("/");
             let current = root;
-
-            parts.forEach((part, index) => {
-              if (!current[part]) {
-                current[part] = index === parts.length - 1 ? null : {};
+            
+            parts.forEach((part, i) => {
+              current.fileIndices.add(idx);
+              
+              if (!current.children.has(part)) {
+                current.children.set(part, {
+                  path: parts.slice(0, i + 1).join("/"),
+                  name: part,
+                  isFile: i === parts.length - 1,
+                  children: new Map(),
+                  fileIndices: new Set(),
+                });
               }
-              if (index < parts.length - 1) {
-                current = current[part];
-              }
+              current = current.children.get(part)!;
             });
+            current.fileIndices.add(idx);
           });
 
-          const convertToTree = (obj: any, prefix: string = ""): TreeNode[] => {
-            return Object.keys(obj).map((key) => {
-              const fullPath = prefix ? `${prefix}/${key}` : key;
-              const isDirectory = obj[key] !== null;
+          const traverse = (node: TreeNodeInternal, indent: number, parentId: string = "") => {
+            const sortedChildren = Array.from(node.children.entries()).sort(
+              ([nameA], [nameB]) => nameA.localeCompare(nameB)
+            );
 
-              return {
-                name: key,
-                fullPath,
-                isDirectory,
-                children: isDirectory ? convertToTree(obj[key], fullPath) : undefined,
-              };
+            sortedChildren.forEach(([, child], index) => {
+              const id = parentId ? `${parentId}.${index + 1}` : `${index + 1}`;
+              
+              items.push({
+                path: child.path,
+                displayName: child.name,
+                indent,
+                isDirectory: !child.isFile,
+                fileIndices: Array.from(child.fileIndices),
+                id,
+                showInMatrix: child.isFile, // Initially only files show in matrix
+              });
+
+              if (!child.isFile) {
+                traverse(child, indent + 1, id);
+              }
             });
           };
 
-          return convertToTree(root);
-        };
-
-        // Build recommended module tree (for now, same as file tree)
-        const buildRecommendedModuleTree = (fileList: string[]): TreeNode[] => {
-          // TODO: Implement logic to group files into recommended modules
-          // For now, pass through to buildFileTree
-          return buildFileTree(fileList);
+          traverse(root, 0);
+          return items;
         };
 
         const fileList = Object.keys(files);
 
         const dsmData: DSMData = {
           files,
-          fileTree: buildFileTree(fileList),
-          recommendedModuleTree: buildRecommendedModuleTree(fileList),
+          displayItems: buildDisplayItems(fileList),
+          fileList,
         };
 
         sendComplete(dsmData);

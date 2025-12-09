@@ -5,6 +5,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import * as os from "os";
 import { getAnalyzer } from "./analyzers";
+import { calculateComplexity } from "./analyzers/javascript";
 import { CODE_EXTENSIONS, EXCLUDED_DIRS } from "./analyzers/constants";
 
 const execAsync = promisify(exec);
@@ -192,18 +193,28 @@ export async function analyzeGitRepo(
           dependencies: count // Use actual import count
         }));
         
-        // Calculate complexity (simple heuristic: lines of code / 10)
-        const lines = content.split('\n').length;
-        const complexity = Math.max(1, Math.min(15, Math.floor(lines / 10)));
+        // Calculate line count (non-empty lines)
+        const lineCount = content.split('\n').filter(line => line.trim().length > 0).length;
+        
+        // Calculate cyclomatic complexity using escomplex for JS/TS files
+        let complexity = 0;
+        const ext = path.extname(file).toLowerCase();
+        const jsExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
+        
+        if (jsExtensions.includes(ext)) {
+          complexity = calculateComplexity(content, file);
+        }
         
         fileData[file] = {
           complexity,
+          lineCount,
           dependencies,
         };
       } catch (error) {
         console.error(`Error analyzing file ${file}:`, error);
         fileData[file] = {
-          complexity: 1,
+          complexity: 0,
+          lineCount: 0,
           dependencies: [],
         };
       }

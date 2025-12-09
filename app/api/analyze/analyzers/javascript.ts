@@ -1,6 +1,7 @@
 import { LanguageAnalyzer } from "./types";
 import * as path from "path";
 import madge from "madge";
+import * as escomplex from "escomplex";
 import { JS_EXTENSIONS, JS_FILE_EXTENSION_PATTERN, MADGE_EXCLUDE_PATTERNS, EXCLUDED_DIRS } from "./constants";
 
 // Configuration toggles
@@ -228,6 +229,42 @@ function buildDependencyCountMap(
   }
   
   return depCountMap;
+}
+
+/**
+ * Calculate cyclomatic complexity for JavaScript/TypeScript code.
+ * Uses escomplex library to analyze the code and return the aggregate complexity.
+ * 
+ * @param content - The source code content
+ * @param filePath - Optional file path for context (used to determine if TS)
+ * @returns The cyclomatic complexity score (defaults to 1 if analysis fails)
+ */
+export function calculateComplexity(content: string, filePath?: string): number {
+  try {
+    // Determine if this is TypeScript based on file extension
+    const isTypeScript = filePath && /\.(ts|tsx)$/.test(filePath);
+    
+    // Determine if JSX is enabled
+    const hasJsx = filePath ? /\.(tsx|jsx)$/.test(filePath) : false;
+    
+    // escomplex options
+    const options = {
+      // Parse as module (not script)
+      sourceType: 'module' as const,
+      // Enable JSX for .tsx and .jsx files
+      jsx: hasJsx,
+    };
+    
+    // Analyze the code
+    const result = escomplex.analyse(content, options);
+    
+    // Return the aggregate cyclomatic complexity
+    // This represents the sum of all function complexities in the file
+    return Math.max(1, Math.round(result.aggregate.cyclomatic));
+  } catch (error) {
+    // If analysis fails (e.g., syntax error), return 0 to indicate no complexity data
+    return 0;
+  }
 }
 
 // JavaScript/TypeScript analyzer using madge

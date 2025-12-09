@@ -4,10 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const SAMPLE_PROJECTS = [
-  { name: "JavaScript", url: "https://github.com/tastejs/todomvc.git", emoji: "📜" },
-  { name: "Python", url: "https://github.com/fastapi/fastapi", emoji: "🐍" },
-  { name: "Java", url: "", emoji: "☕", disabled: true },
-  { name: "C#", url: "", emoji: "🎯", disabled: true },
+  { name: "JavaScript | Redux", url: "https://github.com/reduxjs/redux", emoji: "📜" }, 
+  { name: "JavaScript | TODOMVC", url: "https://github.com/tastejs/todomvc.git", emoji: "📜" }, 
+  { name: "Python | FastAPI", url: "https://github.com/fastapi/fastapi", emoji: "🐍" },
+  { name: "Java | SpringBoot", url: "https://github.com/spring-projects/spring-boot", emoji: "☕", disabled: true },
+  { name: "Go | Go", url: "https://github.com/golang/go/tree/master", emoji: "🎯", disabled: true },
 ];
 
 export default function Home() {

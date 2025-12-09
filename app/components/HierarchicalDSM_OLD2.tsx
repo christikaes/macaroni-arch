@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { MultiGrid } from "react-virtualized";
-import type { DSMData, DisplayItem } from "~/types/dsm";
+import type { DSMData } from "~/types/dsm";
 
 // Configuration constants
 const ZOOM_THRESHOLD_SHOW_HEADERS = 0.8; // Zoom level at which headers become visible
@@ -18,8 +18,18 @@ interface DSMMatrixProps {
   data: DSMData;
 }
 
+interface DisplayItem {
+  path: string;
+  displayName: string;
+  indent: number;
+  isDirectory: boolean;
+  fileIndices: number[];
+  id: string;
+  showInMatrix: boolean;
+}
+
 export default function DSMMatrix({ data }: DSMMatrixProps) {
-  const { files, displayItems: serverDisplayItems, fileList } = data;
+  const { files } = data;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [viewportSize, setViewportSize] = useState({ width: 1000, height: 800 });
   const [zoom, setZoom] = useState(0.1);
@@ -30,47 +40,83 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
   const scrollPositionRef = useRef({ scrollLeft: 0, scrollTop: 0 });
   const zoomRef = useRef(zoom);
   const recomputeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const zoomThrottleRef = useRef<NodeJS.Timeout | null>(null);
-  const pendingZoomRef = useRef<number | null>(null);
   
   // Update zoom ref whenever zoom changes
   useEffect(() => {
     zoomRef.current = zoom;
   }, [zoom]);
 
-  // Build displayItems with collapse state applied
+  const fileList = useMemo(() => Object.keys(files), [files]);
+
+  // Build hierarchical display items
   const displayItems = useMemo(() => {
-    if (!serverDisplayItems) return [];
-    
     const items: DisplayItem[] = [];
-    let skipDepth: number | null = null; // Track depth below which to skip items
     
-    serverDisplayItems.forEach((item) => {
-      // If we're skipping and current item is still deeper than skip threshold, skip it
-      if (skipDepth !== null && item.indent > skipDepth) {
-        return;
-      }
+    interface TreeNode {
+      path: string;
+      name: string;
+      isFile: boolean;
+      children: Map<string, TreeNode>;
+      fileIndices: Set<number>;
+    }
+    
+    const root: TreeNode = {
+      path: "",
+      name: "",
+      isFile: false,
+      children: new Map(),
+      fileIndices: new Set(),
+    };
+
+    fileList.forEach((file, idx) => {
+      const parts = file.split("/");
+      let current = root;
       
-      // We've reached same or shallower level, stop skipping
-      if (skipDepth !== null && item.indent <= skipDepth) {
-        skipDepth = null;
-      }
-      
-      const isExpanded = !item.isDirectory || !collapsed.has(item.path);
-      
-      items.push({
-        ...item,
-        showInMatrix: item.isDirectory ? !isExpanded : true,
+      parts.forEach((part, i) => {
+        current.fileIndices.add(idx);
+        
+        if (!current.children.has(part)) {
+          current.children.set(part, {
+            path: parts.slice(0, i + 1).join("/"),
+            name: part,
+            isFile: i === parts.length - 1,
+            children: new Map(),
+            fileIndices: new Set(),
+          });
+        }
+        current = current.children.get(part)!;
       });
-      
-      // If this is a collapsed directory, start skipping all children (deeper items)
-      if (item.isDirectory && !isExpanded) {
-        skipDepth = item.indent;
-      }
+      current.fileIndices.add(idx);
     });
-    
+
+    const traverse = (node: TreeNode, indent: number, parentId: string = "") => {
+      const sortedChildren = Array.from(node.children.entries()).sort(
+        ([nameA], [nameB]) => nameA.localeCompare(nameB)
+      );
+
+      sortedChildren.forEach(([, child], index) => {
+        const id = parentId ? `${parentId}.${index + 1}` : `${index + 1}`;
+        const isExpanded = !child.isFile && !collapsed.has(child.path);
+        
+        items.push({
+          path: child.path,
+          displayName: child.name,
+          indent,
+          isDirectory: !child.isFile,
+          fileIndices: Array.from(child.fileIndices),
+          id,
+          showInMatrix: child.isFile || !isExpanded,
+        });
+
+        if (isExpanded) {
+          traverse(child, indent + 1, id);
+        }
+      });
+    };
+
+    traverse(root, 0);
     return items;
-  }, [serverDisplayItems, collapsed]);
+  }, [fileList, collapsed]);
 
   const toggleCollapse = useCallback((path: string) => {
     setCollapsed((prev) => {
@@ -211,8 +257,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       if (state.scrollLeft !== undefined) scrollPositionRef.current.scrollLeft = state.scrollLeft;
       if (state.scrollTop !== undefined) scrollPositionRef.current.scrollTop = state.scrollTop;
       
-      // Debounce recompute during zoom for better performance
-      const delay = 50; // Increased delay for smoother zoom
+      // Debounce recompute during zoom (immediate for matrixItems changes)
+      const delay = matrixItems ? 0 : 16; // ~60fps
       
       recomputeTimeoutRef.current = setTimeout(() => {
         if (gridRef.current) {
@@ -241,14 +287,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
   }, [zoom, matrixItems]);
 
   // Helper to get all ancestor folder paths for an item (from deepest to shallowest)
-  const ancestorCacheRef = useRef(new Map<string, string[]>());
-  
   const getAncestorFolders = useCallback((item: DisplayItem): string[] => {
-    // Check cache first
-    if (ancestorCacheRef.current.has(item.path)) {
-      return ancestorCacheRef.current.get(item.path)!;
-    }
-    
     const parts = item.path.split("/");
     const ancestors: string[] = [];
     
@@ -267,7 +306,6 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       }
     }
     
-    ancestorCacheRef.current.set(item.path, ancestors);
     return ancestors;
   }, []);
 
@@ -347,26 +385,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        
-        // Throttle zoom updates for performance
-        if (!zoomThrottleRef.current) {
-          setZoom(prev => {
-            const newZoom = Math.max(minZoom, Math.min(1, prev * delta));
-            pendingZoomRef.current = newZoom;
-            return newZoom;
-          });
-          
-          zoomThrottleRef.current = setTimeout(() => {
-            zoomThrottleRef.current = null;
-            if (pendingZoomRef.current !== null) {
-              setZoom(pendingZoomRef.current);
-              pendingZoomRef.current = null;
-            }
-          }, 16); // ~60fps
-        } else {
-          // Store pending zoom but don't update state yet
-          pendingZoomRef.current = Math.max(minZoom, Math.min(1, (pendingZoomRef.current ?? zoom) * delta));
-        }
+        setZoom(prev => Math.max(minZoom, Math.min(1, prev * delta)));
       }
     };
 
@@ -378,11 +397,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('wheel', handleWheel);
-      if (zoomThrottleRef.current) {
-        clearTimeout(zoomThrottleRef.current);
-      }
     };
-  }, [minZoom, zoom]);
+  }, [minZoom]);
 
   // Track viewport size
   useEffect(() => {
