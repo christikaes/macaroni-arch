@@ -10,15 +10,47 @@ import { calculatePythonComplexity } from "./analyzers/python";
 import { calculateJavaComplexity } from "./analyzers/java";
 import { calculateCSharpComplexity } from "./analyzers/csharp";
 import { calculateGoComplexity } from "./analyzers/go";
-import { CODE_EXTENSIONS, EXCLUDED_DIRS } from "./analyzers/constants";
+import { CODE_EXTENSIONS, EXCLUDED_DIRS, MAX_REPO_SIZE_MB, CLONE_DEPTH } from "./analyzers/constants";
 
 const execAsync = promisify(exec);
 
 export type ProgressCallback = (message: string) => void;
 
-// Performance configuration
-const MAX_FILES_FOR_DETAILED_ANALYSIS = 300;
-const CLONE_DEPTH = 1;
+/**
+ * Check repository size before cloning
+ * Uses git clone with --filter to download only metadata and check size
+ */
+async function checkRepoSize(repoUrl: string): Promise<void> {
+  const tmpCheckDir = await fs.mkdtemp(path.join(os.tmpdir(), 'macaroni-check-'));
+  
+  try {
+    // Do a blobless clone to check size without downloading file contents
+    await execAsync(
+      `git clone --filter=blob:none --no-checkout --single-branch --depth 1 "${repoUrl}" "${tmpCheckDir}"`,
+      { maxBuffer: 5 * 1024 * 1024 }
+    );
+    
+    // Get the size of the .git directory
+    const { stdout } = await execAsync(`du -sm "${tmpCheckDir}/.git" | cut -f1`);
+    const sizeInMB = parseInt(stdout.trim(), 10);
+    
+    if (sizeInMB > MAX_REPO_SIZE_MB) {
+      throw new Error(
+        `Repository size (${sizeInMB} MB) exceeds the maximum allowed size of ${MAX_REPO_SIZE_MB} MB. ` +
+        `Please analyze a smaller repository.`
+      );
+    }
+    
+    console.log(`[Git Clone] Repository size: ${sizeInMB} MB (within ${MAX_REPO_SIZE_MB} MB limit)`);
+  } finally {
+    // Clean up check directory
+    try {
+      await execAsync(`rm -rf "${tmpCheckDir}"`);
+    } catch (error) {
+      console.error('Failed to clean up check directory:', error);
+    }
+  }
+}
 
 /**
  * Clone repository and analyze files using git
@@ -29,6 +61,10 @@ async function cloneAndAnalyze(
   repoUrl: string,
   onProgress?: ProgressCallback
 ): Promise<{ files: string[]; tmpDir: string; branch: string }> {
+  // Check repo size before cloning
+  onProgress?.("Checking repository size...");
+  await checkRepoSize(repoUrl);
+  
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'macaroni-'));
   
   console.log('[Git Clone] Starting clone:', { repoUrl, tmpDir });
@@ -174,9 +210,6 @@ export async function analyzeGitRepoWithClone(
 
     const allDependencies = new Map<string, Map<string, number>>();
     
-    const totalFiles = Array.from(filesByAnalyzer.values()).reduce((sum, arr) => sum + arr.length, 0);
-    const skipDetailedAnalysis = totalFiles > MAX_FILES_FOR_DETAILED_ANALYSIS;
-    
     for (const [_analyzerKey, groupFiles] of filesByAnalyzer.entries()) {
       const analyzer = fileAnalyzerMap.get(groupFiles[0]);
       if (!analyzer) continue;
@@ -184,20 +217,13 @@ export async function analyzeGitRepoWithClone(
       const languageName = analyzer.extensions[0].toUpperCase();
       onProgress?.(`Analyzing ${groupFiles.length} ${languageName} files...`);
       
-      if (skipDetailedAnalysis && analyzer.analyzeAll) {
-        try {
-          const deps = await analyzer.analyzeAll(groupFiles, tmpDir);
-          for (const [file, fileDeps] of deps.entries()) {
-            allDependencies.set(file, fileDeps);
-          }
-        } catch (error) {
-          console.error(`Error in fast analysis mode:`, error);
-        }
-      } else {
+      try {
         const deps = await analyzer.analyzeAll?.(groupFiles, tmpDir) ?? new Map<string, Map<string, number>>();
         for (const [file, fileDeps] of deps.entries()) {
           allDependencies.set(file, fileDeps);
         }
+      } catch (error) {
+        console.error(`Error analyzing ${languageName} files:`, error);
       }
     }
 

@@ -37,6 +37,10 @@ export const CODE_EXTENSIONS = [
 // File extension pattern for JS/TS files
 export const JS_FILE_EXTENSION_PATTERN = /\.(ts|tsx|js|jsx)$/;
 
+// Repository analysis configuration
+export const MAX_REPO_SIZE_MB = 200; // Maximum repository size in MB
+export const CLONE_DEPTH = 1; // Git clone depth (1 = shallow clone, latest commit only)
+
 // Directories to exclude from analysis
 export const EXCLUDED_DIRS = [
   'node_modules/',
