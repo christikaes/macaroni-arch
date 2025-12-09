@@ -171,8 +171,51 @@ export default function Home() {
             </table>
           </div>
         </div>
+
+        {/* What is this section */}
+        <div className="mt-16 w-full max-w-3xl rounded-lg border-2 border-yellow-400 bg-white p-8 shadow-lg">
+          <h2 className="mb-4 text-2xl font-bold text-yellow-600">
+            What&apos;s this all about?
+          </h2>
+          <div className="space-y-4 text-left text-gray-700">
+            <p>
+              Ever looked at a codebase and thought "wow, this is a mess"? Yeah, me too. 
+              That&apos;s where <strong>Macaroni Architecture</strong> comes in.
+            </p>
+            <p>
+              This tool analyzes your code and generates a <strong>Design Structure Matrix (DSM)</strong> — 
+              basically a visual grid that shows how your files depend on each other. It&apos;s like a map 
+              of your codebase&apos;s spaghetti factor.
+            </p>
+            <p>
+              <strong>The goal?</strong> Turn your tangled spaghetti code into nice, modular macaroni. 
+              Each file should be its own little piece, not glued to everything else. The DSM helps you 
+              spot problematic dependencies and refactor towards cleaner architecture.
+            </p>
+            <p>
+              Just paste a GitHub (or any Git) repo URL, and you&apos;ll get a score from 
+              🍝 <em>Spaghetti</em> (yikes) to 🍝 <em>Macaroni</em> (chef&apos;s kiss). 
+              The matrix shows you exactly where the mess is so you can fix it.
+            </p>
+          </div>
+        </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t-2 border-yellow-300 bg-yellow-100 py-6 text-center">
+        <p className="text-gray-700">
+          Made with <span className="text-red-500">♥</span> by{" "}
+          <a 
+            href="https://github.com/christikaes" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="font-semibold text-yellow-600 transition-colors hover:text-yellow-700 hover:underline"
+          >
+            @christikaes
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }
