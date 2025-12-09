@@ -51,32 +51,32 @@ export default function AnalyzePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-yellow-50 via-orange-50 to-yellow-100 p-8">
-      <div className="mx-auto max-w-7xl">
+    <div className="min-h-screen bg-gray-900 flex flex-col">
+      <div className="w-full">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-4 flex items-center justify-between px-8 pt-6">
           <div>
             <Link
               href="/"
-              className="mb-4 inline-flex items-center text-sm text-orange-600 hover:text-orange-700"
+              className="mb-4 inline-flex items-center text-sm text-yellow-400 hover:text-yellow-300"
             >
               ← Back to Home
             </Link>
-            <h1 className="text-4xl font-bold text-yellow-600">
+            <h1 className="text-4xl font-bold text-yellow-400">
               Design Structure Matrix
             </h1>
             {repoUrl && (
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-gray-400">
                 Analyzing: <span className="font-medium">{repoUrl}</span>
               </p>
             )}
           </div>
-          <div className="text-6xl">🍝😊</div>
+          <div className="text-6xl">🍝</div>
         </div>
 
         {/* Content */}
         {!repoUrl && (
-          <div className="rounded-lg bg-white p-8 text-center shadow-md">
+          <div className="rounded-lg bg-white p-8 text-center shadow-md mx-8">
             <p className="text-lg text-gray-600">
               No repository URL provided. Please go back to the home page and
               enter a repository URL.
@@ -91,7 +91,7 @@ export default function AnalyzePage() {
         )}
 
         {loading && (
-          <div className="rounded-lg bg-white p-12 text-center shadow-md">
+          <div className="rounded-lg bg-white p-12 text-center shadow-md mx-8">
             <div className="mb-4 text-6xl">🍝</div>
             <p className="text-xl font-semibold text-gray-700">
               Analyzing repository...
@@ -108,7 +108,7 @@ export default function AnalyzePage() {
         )}
 
         {error && (
-          <div className="rounded-lg bg-red-50 border-2 border-red-300 p-8 shadow-md">
+          <div className="rounded-lg bg-red-50 border-2 border-red-300 p-8 shadow-md mx-8">
             <p className="text-lg font-semibold text-red-700">Error: {error}</p>
             <button
               onClick={() => repoUrl && fetchDSMData(repoUrl)}
@@ -120,17 +120,10 @@ export default function AnalyzePage() {
         )}
 
         {dsmData && !loading && !error && (
-          <div className="rounded-lg bg-white p-6 shadow-lg">
-            <div className="mb-4">
-              <h2 className="text-2xl font-semibold text-gray-800">
-                Dependency Matrix
-              </h2>
-              <p className="mt-1 text-sm text-gray-600">
-                Rows represent files that depend on columns. Click folders to expand/collapse.
-                Numbers show aggregated dependency counts.
-              </p>
+          <div className="flex-1 flex items-center justify-center px-8 pb-8">
+            <div className="bg-white rounded-lg shadow-xl">
+              <HierarchicalDSM data={dsmData} />
             </div>
-            <HierarchicalDSM data={dsmData} />
           </div>
         )}
       </div>

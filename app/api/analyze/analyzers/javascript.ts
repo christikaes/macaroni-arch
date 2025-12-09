@@ -265,24 +265,17 @@ export const jsAnalyzer: LanguageAnalyzer = {
         // Continue with empty dependencies - will try individual file analysis
       }
       
-      // Performance optimization: skip individual file analysis for repos with >100 files
-      const shouldCountImports = files.length <= 100;
-      
-      if (shouldCountImports) {
-        // Analyze each file individually with import counting
-        for (const file of files) {
-          const fullPath = path.join(repoPath, file);
+      // Analyze each file individually with import counting
+      for (const file of files) {
+        const fullPath = path.join(repoPath, file);
+        
+        try {
+          const onAfterFileHandler = makeOnAfterFile(file);
           
-          try {
-            const onAfterFileHandler = makeOnAfterFile(file);
-            
-            await madge(fullPath, createMadgeConfig(repoPath, onAfterFileHandler));
-          } catch {
-            // Silently continue if individual file analysis fails
-          }
+          await madge(fullPath, createMadgeConfig(repoPath, onAfterFileHandler));
+        } catch {
+          // Silently continue if individual file analysis fails
         }
-      } else {
-        console.log(`Skipping detailed import counting for ${files.length} files (performance mode)`);
       }
 
       const dependencies = allDeps;

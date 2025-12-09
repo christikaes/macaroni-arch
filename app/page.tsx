@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 const SAMPLE_PROJECTS = [
   { name: "JavaScript", url: "https://github.com/tastejs/todomvc.git", emoji: "📜" },
-  { name: "Python", url: "https://github.com/pallets/flask.git", emoji: "🐍" },
+  { name: "Python", url: "https://github.com/fastapi/fastapi", emoji: "🐍" },
   { name: "Java", url: "", emoji: "☕", disabled: true },
   { name: "C#", url: "", emoji: "🎯", disabled: true },
 ];
@@ -58,7 +58,7 @@ export default function Home() {
         <div className="flex flex-col items-center justify-center">
         {/* Logo */}
         <div className="mb-8 text-9xl" aria-label="Macaroni Logo">
-          🍝😊
+          🍝
         </div>
 
         {/* Title */}
