@@ -1,0 +1,17 @@
+name: macaroni-matrix
+region: nyc
+services:
+  - name: web
+    github:
+      repo: christikaes/macaroni-arch
+      branch: main
+      deploy_on_push: true
+    dockerfile_path: Dockerfile
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+    envs:
+      - key: NODE_ENV
+        value: production
