@@ -17,6 +17,21 @@ interface MatrixRowsProps {
   getComplexityColor: (complexity: number) => string;
   files: Record<string, { complexity?: number; lineCount?: number; dependencies: Array<{ fileName: string; dependencies: number }> }>;
   fileList: string[];
+  repoUrl?: string;
+  branch?: string;
+}
+
+// Helper function to build GitHub file URL
+function buildGitHubFileUrl(repoUrl: string, filePath: string, branch: string = 'master'): string | null {
+  // Check if it's a GitHub URL
+  const githubMatch = repoUrl.match(/github\.com[\/:]([^/]+)\/([^/.]+)/);
+  if (!githubMatch) return null;
+  
+  const owner = githubMatch[1];
+  const repo = githubMatch[2].replace(/\.git$/, '');
+  
+  // Use the provided branch (from git clone) or default to master
+  return `https://github.com/${owner}/${repo}/blob/${branch}/${filePath}`;
 }
 
 export function MatrixRows({
@@ -32,6 +47,8 @@ export function MatrixRows({
   getComplexityColor,
   files,
   fileList,
+  repoUrl,
+  branch,
 }: MatrixRowsProps) {
   const { getAncestorFolders } = useFolderHelpers();
 
@@ -240,6 +257,7 @@ export function MatrixRows({
               let textColor = "text-gray-800";
               if (isMainDiagonal && complexityScore !== undefined) {
                 bgColor = getComplexityColor(complexityScore);
+                textColor = "text-white";
               } else if (isCyclical) {
                 bgColor = "rgb(239, 68, 68)";
                 textColor = "text-white";
@@ -295,6 +313,17 @@ export function MatrixRows({
                 ? styles.matrixCellDependency
                 : styles.matrixCell;
 
+              // Build GitHub URL for the file if available
+              const githubUrl = repoUrl && (isMainDiagonal || hasDependency)
+                ? buildGitHubFileUrl(repoUrl, isMainDiagonal ? rowItem.path : rowItem.path, branch || 'master')
+                : null;
+
+              const handleClick = () => {
+                if (githubUrl) {
+                  window.open(githubUrl, '_blank', 'noopener,noreferrer');
+                }
+              };
+
               return (
                 <div
                   key={`cell-${rowIdx}-${colIdx}`}
@@ -305,10 +334,12 @@ export function MatrixRows({
                     setHoveredCell({ row: rowIdx, col: colIdx })
                   }
                   onMouseLeave={() => setHoveredCell(null)}
+                  onClick={handleClick}
                   style={{
                     backgroundColor: bgColor,
                     gridColumn: colIdx + numHierarchyColumns + 2,
                     gridRow: rowIdx + 2,
+                    cursor: githubUrl ? 'pointer' : 'default',
                     ...borderStyle,
                   }}
                   title={

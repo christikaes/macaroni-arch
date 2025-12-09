@@ -19,17 +19,11 @@ export function useColorGradients(
     return `rgb(${red}, ${green}, ${blue})`;
   }, [minDeps, maxDeps]);
 
-  // Get background color for complexity scores (light grey -> dark grey gradient)
-  const getComplexityColor = useCallback((complexity: number): string => {
-    if (complexity === 0) return 'rgb(243, 244, 246)';
-    
-    const normalized = complexity / maxComplexity;
-    
-    // Light grey (243, 244, 246) -> Dark grey (55, 65, 81)
-    const value = Math.round(243 - (243 - 55) * normalized);
-    
-    return `rgb(${value}, ${value + 10}, ${value + 35})`;
-  }, [maxComplexity]);
+  // Get background color for complexity scores (always dark grey)
+  const getComplexityColor = useCallback((_complexity: number): string => {
+    // Always use dark grey for complexity scores
+    return 'rgb(55, 65, 81)';
+  }, []);
 
   return {
     getDependencyColor,

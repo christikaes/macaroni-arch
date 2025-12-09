@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['dependency-cruiser', 'madge'],
+  serverExternalPackages: ['madge'],
   transpilePackages: ['@revolist/revogrid', '@revolist/revogrid-react'],
 };
 

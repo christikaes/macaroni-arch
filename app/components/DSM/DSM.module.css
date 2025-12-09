@@ -15,13 +15,13 @@
 }
 
 .headerCell {
-  background-color: rgb(254, 243, 199);
+  background-color: white;
   font-size: 0.75rem;
   font-weight: 600;
   color: rgb(55, 65, 81);
-  height: 120px;
+  height: 100px;
   padding: 0;
-  border: 1px solid rgba(250, 204, 21, 0.5);
+  border: 1px solid white;
   box-sizing: border-box;
 }
 
@@ -30,7 +30,7 @@
   font-size: 0.75rem;
   font-weight: 600;
   color: rgb(55, 65, 81);
-  height: 120px;
+  height: 100px;
   padding: 0;
   border: 1px solid rgba(250, 204, 21, 0.5);
   box-sizing: border-box;
@@ -40,10 +40,10 @@
 
 .headerCellColumn {
   background-color: rgb(254, 243, 199);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 500;
   color: rgb(55, 65, 81);
-  height: 120px;
+  height: 100px;
   padding: 0;
   border: 1px solid rgba(250, 204, 21, 0.5);
   box-sizing: border-box;
@@ -229,6 +229,15 @@
   font-weight: 600;
   color: rgb(17, 24, 39);
   margin-bottom: 0.25rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  display: inline-block;
+  transition: background-color 0.2s;
+}
+
+.infoTitle:hover {
+  background-color: rgb(253, 230, 138);
 }
 
 .infoText {

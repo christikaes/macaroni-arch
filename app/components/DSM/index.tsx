@@ -15,9 +15,10 @@ import styles from "./DSM.module.css";
 
 interface DSMMatrixProps {
   data: DSMData;
+  repoUrl?: string;
 }
 
-export default function DSMMatrix({ data }: DSMMatrixProps) {
+export default function DSMMatrix({ data, repoUrl }: DSMMatrixProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   const [hoveredFolder, setHoveredFolder] = useState<string | null>(null);
@@ -58,13 +59,13 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
 
   const gridStyle = {
     gridTemplateColumns: `repeat(${numHierarchyColumns}, minmax(60px, auto)) 50px repeat(${matrixItems.length}, 30px)`,
-    gridTemplateRows: `120px repeat(${matrixItems.length}, 30px)`,
+    gridTemplateRows: `100px repeat(${matrixItems.length}, 30px)`,
     backgroundImage: `
       linear-gradient(to right, rgba(250, 204, 21, 0.15) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(250, 204, 21, 0.15) 1px, transparent 1px)
     `,
     backgroundSize: `30px 30px`,
-    backgroundPosition: `${numHierarchyColumns * 60 + 50}px 120px`,
+    backgroundPosition: `${numHierarchyColumns * 60 + 50}px 100px`,
   };
 
   return (
@@ -105,6 +106,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
               getComplexityColor={getComplexityColor}
               files={files}
               fileList={fileList}
+              repoUrl={repoUrl}
+              branch={data.branch}
             />
           </div>
         </div>
@@ -117,6 +120,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
         getDependencyCount={getDependencyCount}
         files={files}
         fileList={fileList}
+        repoUrl={repoUrl}
+        branch={data.branch}
       />
     </>
   );

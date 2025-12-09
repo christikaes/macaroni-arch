@@ -1,8 +1,30 @@
 import { LanguageAnalyzer } from "./types";
 import * as path from "path";
 import madge from "madge";
-import * as escomplex from "escomplex";
 import { JS_EXTENSIONS, JS_FILE_EXTENSION_PATTERN, MADGE_EXCLUDE_PATTERNS, EXCLUDED_DIRS } from "./constants";
+
+// Type definitions for esprima (no @types package available)
+interface EsprimaNode {
+  type: string;
+  loc?: { start?: { line: number } };
+  id?: { name: string };
+  operator?: string;
+  test?: unknown;
+  [key: string]: unknown;
+}
+
+interface EsprimaAST {
+  type: string;
+  body: EsprimaNode[];
+}
+
+interface EsprimaModule {
+  parseModule(code: string, options?: { loc?: boolean; jsx?: boolean }): EsprimaAST;
+  parseScript(code: string, options?: { loc?: boolean; jsx?: boolean }): EsprimaAST;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const esprima = require('esprima') as EsprimaModule;
 
 // Configuration toggles
 const INCLUDE_TYPES = true;
@@ -233,7 +255,8 @@ function buildDependencyCountMap(
 
 /**
  * Calculate cyclomatic complexity for JavaScript/TypeScript code.
- * Uses escomplex library to analyze the code and return the aggregate complexity.
+ * Uses cyclomatic-complexity library with custom parsing to handle both
+ * ES6 modules and regular scripts.
  * 
  * @param content - The source code content
  * @param filePath - Optional file path for context (used to determine if TS)
@@ -241,29 +264,108 @@ function buildDependencyCountMap(
  */
 export function calculateComplexity(content: string, filePath?: string): number {
   try {
-    // Determine if this is TypeScript based on file extension
-    const isTypeScript = filePath && /\.(ts|tsx)$/.test(filePath);
+    // The cyclomatic-complexity library uses esprima.parseScript which doesn't
+    // support ES6 module syntax (import/export). We need to handle this ourselves.
+    // Import esprima directly to parse as module first, then fall back to script
     
-    // Determine if JSX is enabled
-    const hasJsx = filePath ? /\.(tsx|jsx)$/.test(filePath) : false;
+    let ast;
+    try {
+      // Try parsing as ES6 module first (supports import/export)
+      ast = esprima.parseModule(content, { loc: true, jsx: true });
+    } catch {
+      try {
+        // Fall back to script parsing (for non-module code)
+        ast = esprima.parseScript(content, { loc: true, jsx: true });
+      } catch (parseError) {
+        console.error(`Failed to parse ${filePath}:`, parseError);
+        return 1;
+      }
+    }
     
-    // escomplex options
-    const options = {
-      // Parse as module (not script)
-      sourceType: 'module' as const,
-      // Enable JSX for .tsx and .jsx files
-      jsx: hasJsx,
-    };
+    // Now manually calculate complexity by traversing the AST
+    const functionComplexities: Array<{ name: string; complexity: number; line: number }> = [
+      { name: "global", complexity: 0, line: 0 }
+    ];
+    const functionStack: Array<{ name: string; complexity: number; line: number }> = [
+      { name: "global", complexity: 1, line: 0 }
+    ];
     
-    // Analyze the code
-    const result = escomplex.analyse(content, options);
+    function traverse(node: EsprimaNode | EsprimaAST | null | undefined): void {
+      if (!node || typeof node !== 'object') return;
+      
+      const n = node as EsprimaNode;
+      
+      switch (n.type) {
+        case "FunctionDeclaration":
+          if (n.id) {
+            const newFunction = { name: n.id.name, complexity: 1, line: n.loc?.start?.line || 0 };
+            functionStack.push(newFunction);
+            functionComplexities.push(newFunction);
+          }
+          break;
+        case "FunctionExpression":
+        case "ArrowFunctionExpression":
+          const functionName = n.id?.name || "anonymous";
+          const newFunction = { name: functionName, complexity: 1, line: n.loc?.start?.line || 0 };
+          functionStack.push(newFunction);
+          functionComplexities.push(newFunction);
+          break;
+        case "IfStatement":
+        case "ConditionalExpression":
+        case "ForStatement":
+        case "ForInStatement":
+        case "ForOfStatement":
+        case "WhileStatement":
+        case "DoWhileStatement":
+        case "CatchClause":
+          if (functionStack.length > 0) {
+            functionStack[functionStack.length - 1].complexity++;
+          }
+          break;
+        case "LogicalExpression":
+          if ((n.operator === "&&" || n.operator === "||") && functionStack.length > 0) {
+            functionStack[functionStack.length - 1].complexity++;
+          }
+          break;
+        case "SwitchCase":
+          if (n.test && functionStack.length > 0) {
+            functionStack[functionStack.length - 1].complexity++;
+          }
+          break;
+      }
+      
+      // Traverse child nodes
+      for (const key in n) {
+        if (key === 'loc' || key === 'range' || key === 'comments') continue;
+        const child = n[key];
+        if (Array.isArray(child)) {
+          child.forEach(c => traverse(c as EsprimaNode));
+        } else if (child && typeof child === 'object') {
+          traverse(child as EsprimaNode);
+        }
+      }
+      
+      // Pop function from stack when done
+      if (n.type === "FunctionDeclaration" || 
+          n.type === "FunctionExpression" || 
+          n.type === "ArrowFunctionExpression") {
+        functionStack.pop();
+      }
+    }
     
-    // Return the aggregate cyclomatic complexity
-    // This represents the sum of all function complexities in the file
-    return Math.max(1, Math.round(result.aggregate.cyclomatic));
+    traverse(ast);
+    
+    console.log(`Complexity for ${filePath}: total=${functionComplexities.reduce((sum, fn) => sum + fn.complexity, 0)}, functions=${functionComplexities.length}`);
+    
+    // Sum up all function complexities to get total file complexity
+    const totalComplexity = functionComplexities.reduce((sum, fn) => sum + fn.complexity, 0);
+    
+    // If no functions found or total is 0, return 1 as baseline
+    return totalComplexity > 0 ? totalComplexity : 1;
   } catch (error) {
-    // If analysis fails (e.g., syntax error), return 0 to indicate no complexity data
-    return 0;
+    // If analysis fails (e.g., syntax error), return 1 as baseline
+    console.error(`Failed to calculate complexity for ${filePath}:`, error);
+    return 1;
   }
 }
 

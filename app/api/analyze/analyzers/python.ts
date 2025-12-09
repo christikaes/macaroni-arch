@@ -36,33 +36,51 @@ async function analyzePythonFile(filePath: string): Promise<Map<string, number>>
  * Convert Python module path to file path.
  * Examples:
  * - .foo -> ./foo.py or ./foo/__init__.py
- * - ..bar -> ../bar.py or ../bar/__init__.py
- * - foo.bar -> foo/bar.py (but we skip non-relative imports)
+ * - ..bar -> ../bar.py or ../bar/__init__.py  
+ * - foo.bar -> foo/bar.py
  */
 function pythonModuleToFilePath(modulePath: string, currentFileDir: string, allFiles: string[]): string | null {
-  // Only process relative imports (starting with .)
-  if (!modulePath.startsWith('.')) {
-    return null;
-  }
-  
-  // Count leading dots to determine relative level
-  const dots = modulePath.match(/^\.+/)?.[0] || '';
-  const moduleWithoutDots = modulePath.slice(dots.length);
-  
-  // Convert dots to relative path
-  const relativePath = '../'.repeat(dots.length - 1) + moduleWithoutDots.replace(/\./g, '/');
-  const resolvedPath = path.join(currentFileDir, relativePath);
-  
-  // Try different file extensions
-  const possiblePaths = [
-    resolvedPath + '.py',
-    path.join(resolvedPath, '__init__.py')
-  ];
-  
-  for (const testPath of possiblePaths) {
-    const normalizedPath = path.normalize(testPath).replace(/^\/+/, '');
-    if (allFiles.includes(normalizedPath)) {
-      return normalizedPath;
+  // Handle relative imports (starting with .)
+  if (modulePath.startsWith('.')) {
+    // Count leading dots to determine relative level
+    const dots = modulePath.match(/^\.+/)?.[0] || '';
+    const moduleWithoutDots = modulePath.slice(dots.length);
+    
+    // Convert dots to relative path
+    const relativePath = '../'.repeat(dots.length - 1) + moduleWithoutDots.replace(/\./g, '/');
+    const resolvedPath = path.join(currentFileDir, relativePath);
+    
+    // Try different file extensions
+    const possiblePaths = [
+      resolvedPath + '.py',
+      path.join(resolvedPath, '__init__.py')
+    ];
+    
+    for (const testPath of possiblePaths) {
+      const normalizedPath = path.normalize(testPath).replace(/^\/+/, '');
+      if (allFiles.includes(normalizedPath)) {
+        return normalizedPath;
+      }
+    }
+  } else {
+    // Handle absolute imports within the project
+    // Try to match the module path to actual files
+    const moduleParts = modulePath.split('.');
+    
+    // Try different combinations to find the file
+    for (let i = moduleParts.length; i > 0; i--) {
+      const possiblePath = moduleParts.slice(0, i).join('/');
+      
+      const testPaths = [
+        possiblePath + '.py',
+        path.join(possiblePath, '__init__.py'),
+      ];
+      
+      for (const testPath of testPaths) {
+        if (allFiles.includes(testPath)) {
+          return testPath;
+        }
+      }
     }
   }
   
@@ -142,11 +160,16 @@ export const pythonAnalyzer: LanguageAnalyzer = {
       const fileDir = path.dirname(file);
       const depCountMap = new Map<string, number>();
       
+      console.log(`Processing ${file}, found ${fileCounts.size} imports`);
+      
       for (const [modulePath, count] of fileCounts.entries()) {
         const resolvedFile = pythonModuleToFilePath(modulePath, fileDir, pythonFiles);
         
         if (resolvedFile) {
+          console.log(`  ${modulePath} -> ${resolvedFile} (count: ${count})`);
           depCountMap.set(resolvedFile, count);
+        } else {
+          console.log(`  ${modulePath} -> NOT RESOLVED`);
         }
       }
       

@@ -131,7 +131,7 @@ export default function AnalyzePage() {
         )}
 
         {dsmData && !loading && !error && (
-          <DSM data={dsmData} />
+          <DSM data={dsmData} repoUrl={repoUrl || undefined} />
         )}
       </div>
     </div>

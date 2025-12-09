@@ -22,7 +22,7 @@ const CLONE_DEPTH = 1; // Shallow clone depth
 async function cloneAndAnalyze(
   repoUrl: string,
   onProgress?: ProgressCallback
-): Promise<{ files: string[]; tmpDir: string }> {
+): Promise<{ files: string[]; tmpDir: string; branch: string }> {
   // Create temporary directory
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'macaroni-'));
   
@@ -83,6 +83,10 @@ async function cloneAndAnalyze(
       maxBuffer: 10 * 1024 * 1024
     });
 
+    // Get the current branch name
+    const { stdout: branchOutput } = await execAsync(`git -C "${tmpDir}" rev-parse --abbrev-ref HEAD`);
+    const branch = branchOutput.trim();
+
     // Parse file list and filter by extension
     const files = stdout
       .split('\n')
@@ -91,7 +95,7 @@ async function cloneAndAnalyze(
       .filter(file => CODE_EXTENSIONS.some(ext => file.endsWith(ext)));
 
     onProgress?.(`Found ${files.length} files`);
-    return { files, tmpDir };
+    return { files, tmpDir, branch };
   } catch (error) {
     // Clean up on error
     try {
@@ -110,12 +114,12 @@ async function cloneAndAnalyze(
 export async function analyzeGitRepo(
   repoUrl: string,
   onProgress?: ProgressCallback
-): Promise<{ [fileName: string]: FileData }> {
+): Promise<{ files: { [fileName: string]: FileData }; branch: string }> {
   let tmpDir = '';
   
   try {
     // Clone repository and get file list
-    const { files, tmpDir: clonedDir } = await cloneAndAnalyze(repoUrl, onProgress);
+    const { files, tmpDir: clonedDir, branch } = await cloneAndAnalyze(repoUrl, onProgress);
     tmpDir = clonedDir;
 
     // Group files by language/analyzer
@@ -220,7 +224,7 @@ export async function analyzeGitRepo(
       }
     }
 
-    return fileData;
+    return { files: fileData, branch };
   } finally {
     // Clean up temporary directory
     if (tmpDir) {

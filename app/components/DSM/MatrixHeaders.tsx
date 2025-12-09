@@ -20,7 +20,7 @@ export function MatrixHeaders({
       ))}
       
       {/* ID column */}
-      <div key="header-id" className={styles.headerCellId} />
+      <div key="header-id" className={styles.headerCell} />
       
       {/* Matrix column headers */}
       {matrixItems.map((item, idx) => (

@@ -8,6 +8,19 @@ interface InfoOverlayProps {
   getDependencyCount: (fromIndices: number[], toIndices: number[]) => number;
   files: Record<string, { complexity?: number; lineCount?: number; dependencies: Array<{ fileName: string; dependencies: number }> }>;
   fileList: string[];
+  repoUrl?: string;
+  branch?: string;
+}
+
+// Helper function to build GitHub file URL
+function buildGitHubFileUrl(repoUrl: string, filePath: string, branch: string = 'master'): string | null {
+  const githubMatch = repoUrl.match(/github\.com[\/:]([^/]+)\/([^/.]+)/);
+  if (!githubMatch) return null;
+  
+  const owner = githubMatch[1];
+  const repo = githubMatch[2].replace(/\.git$/, '');
+  
+  return `https://github.com/${owner}/${repo}/blob/${branch}/${filePath}`;
 }
 
 export function InfoOverlay({
@@ -17,6 +30,8 @@ export function InfoOverlay({
   getDependencyCount,
   files,
   fileList,
+  repoUrl,
+  branch,
 }: InfoOverlayProps) {
   if (!hoveredCell && !hoveredFolder) return null;
 
@@ -42,24 +57,40 @@ export function InfoOverlay({
   if (hoveredCell.row < 0 || hoveredCell.col < 0) {
     if (hoveredCell.col >= 0) {
       const colItem = matrixItems[hoveredCell.col];
+      const githubUrl = repoUrl ? buildGitHubFileUrl(repoUrl, colItem.path, branch || 'master') : null;
       return (
         <div className={styles.infoOverlay}>
           <div className={styles.infoContent}>
             <div>
               <div className={styles.infoTitle}>Column: {colItem.path}</div>
               <div className={styles.infoText}>ID: {colItem.id}</div>
+              {githubUrl && (
+                <div className={styles.infoTextSmall}>
+                  <a href={githubUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'rgb(59, 130, 246)', textDecoration: 'underline' }}>
+                    {githubUrl}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
       );
     } else if (hoveredCell.row >= 0) {
       const rowItem = matrixItems[hoveredCell.row];
+      const githubUrl = repoUrl ? buildGitHubFileUrl(repoUrl, rowItem.path, branch || 'master') : null;
       return (
         <div className={styles.infoOverlay}>
           <div className={styles.infoContent}>
             <div>
               <div className={styles.infoTitle}>Row: {rowItem.path}</div>
               <div className={styles.infoText}>ID: {rowItem.id}</div>
+              {githubUrl && (
+                <div className={styles.infoTextSmall}>
+                  <a href={githubUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'rgb(59, 130, 246)', textDecoration: 'underline' }}>
+                    {githubUrl}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -87,12 +118,16 @@ export function InfoOverlay({
     lineCount = files[filePath]?.lineCount;
   }
 
+  const githubUrl = repoUrl ? buildGitHubFileUrl(repoUrl, rowItem.path, branch || 'master') : null;
+
   return (
     <div className={styles.infoOverlay}>
       <div className={styles.infoContent}>
         {isMainDiagonal ? (
           <div>
-            <div className={styles.infoTitle}>{rowItem.path}</div>
+            <div className={styles.infoTitle}>
+              {rowItem.path}
+            </div>
             {complexityScore !== undefined && (
               <div className={styles.infoText}>
                 Cyclomatic Complexity: {complexityScore}
@@ -106,11 +141,24 @@ export function InfoOverlay({
                 Aggregated from {rowItem.fileIndices.length} files
               </div>
             )}
+            {githubUrl && (
+              <div className={styles.infoTextSmall}>
+                <a href={githubUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'rgb(59, 130, 246)', textDecoration: 'underline' }}>
+                  {githubUrl}
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <div>
-            <div className={styles.infoTitle}>
-              {rowItem.path} → {colItem.path}
+            <div style={{ marginBottom: '0.25rem' }}>
+              <span className={styles.infoTitle}>
+                {rowItem.path}
+              </span>
+              <span style={{ fontWeight: 600, color: 'rgb(17, 24, 39)', margin: '0 0.25rem' }}>→</span>
+              <span className={styles.infoTitle}>
+                {colItem.path}
+              </span>
             </div>
             {hasDependency && (
               <div className={styles.infoText}>
@@ -128,6 +176,13 @@ export function InfoOverlay({
             {!hasDependency && (
               <div className={styles.infoText} style={{ color: "rgb(107, 114, 128)" }}>
                 No dependencies
+              </div>
+            )}
+            {githubUrl && (
+              <div className={styles.infoTextSmall}>
+                <a href={githubUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'rgb(59, 130, 246)', textDecoration: 'underline' }}>
+                  {githubUrl}
+                </a>
               </div>
             )}
           </div>

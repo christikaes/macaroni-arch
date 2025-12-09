@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
       try {
         // Analyze Git repository with progress callbacks
-        const files = await analyzeGitRepo(repoUrl, sendProgress);
+        const { files, branch } = await analyzeGitRepo(repoUrl, sendProgress);
         sendProgress("Building file tree...");
         
         // Build display items from file list
@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
           files,
           displayItems: buildDisplayItems(fileList),
           fileList,
+          branch,
         };
 
         sendComplete(dsmData);

@@ -23,4 +23,5 @@ export interface DSMData {
   files: { [fileName: string]: FileData };
   displayItems: DisplayItem[];
   fileList: string[];
+  branch?: string;
 }

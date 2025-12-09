@@ -259,14 +259,14 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
             style={{ 
               display: 'grid',
               gridTemplateColumns: `repeat(${numHierarchyColumns}, minmax(60px, auto)) 50px repeat(${matrixItems.length}, 30px)`,
-              gridTemplateRows: `120px repeat(${matrixItems.length}, 30px)`,
+              gridTemplateRows: `100px repeat(${matrixItems.length}, 30px)`,
             userSelect: 'none',
             backgroundImage: `
               linear-gradient(to right, rgba(250, 204, 21, 0.15) 1px, transparent 1px),
               linear-gradient(to bottom, rgba(250, 204, 21, 0.15) 1px, transparent 1px)
             `,
             backgroundSize: `30px 30px`,
-            backgroundPosition: `${numHierarchyColumns * 60 + 50}px 120px`
+            backgroundPosition: `${numHierarchyColumns * 60 + 50}px 100px`
           }}
         >
         {/* Header row - hierarchy columns */}
@@ -275,7 +275,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
             key={`header-${idx}`}
             className="bg-yellow-100 text-xs font-semibold text-gray-700"
             style={{ 
-              height: "120px", 
+              height: "100px", 
               padding: "0",
               border: "1px solid rgba(250, 204, 21, 0.5)",
               boxSizing: "border-box"
@@ -289,7 +289,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
           className="bg-yellow-100 text-xs font-semibold text-gray-700"
           style={{ 
             width: "50px", 
-            height: "120px", 
+            height: "100px", 
             padding: "0",
             border: "1px solid rgba(250, 204, 21, 0.5)",
             borderRight: "1px solid rgba(0, 0, 0, 0.5)",
@@ -306,7 +306,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
             onMouseLeave={() => setHoveredCell(null)}
             style={{ 
               width: "30px", 
-              height: "120px",
+              height: "100px",
               padding: "4px 2px",
               border: "1px solid rgba(250, 204, 21, 0.5)",
               boxSizing: "border-box",
