@@ -6,6 +6,7 @@ import * as path from "path";
 import * as os from "os";
 import { getAnalyzer } from "./analyzers";
 import { calculateComplexity } from "./analyzers/javascript";
+import { calculatePythonComplexity } from "./analyzers/python";
 import { CODE_EXTENSIONS, EXCLUDED_DIRS } from "./analyzers/constants";
 
 const execAsync = promisify(exec);
@@ -200,13 +201,17 @@ export async function analyzeGitRepo(
         // Calculate line count (non-empty lines)
         const lineCount = content.split('\n').filter(line => line.trim().length > 0).length;
         
-        // Calculate cyclomatic complexity using escomplex for JS/TS files
+        // Calculate cyclomatic complexity
         let complexity = 0;
         const ext = path.extname(file).toLowerCase();
         const jsExtensions = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs'];
+        const pythonExtensions = ['.py'];
         
         if (jsExtensions.includes(ext)) {
           complexity = calculateComplexity(content, file);
+        } else if (pythonExtensions.includes(ext)) {
+          const fullPath = path.join(tmpDir, file);
+          complexity = await calculatePythonComplexity(fullPath);
         }
         
         fileData[file] = {

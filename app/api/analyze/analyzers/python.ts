@@ -12,10 +12,13 @@ const INCLUDE_TESTS = true;
 // Store for counting imports per file
 const importCounts = new Map<string, Map<string, number>>();
 
+// Store for complexity scores per file
+const complexityScores = new Map<string, number>();
+
 /**
- * Run Python script to analyze imports using Python's AST module.
+ * Run Python script to analyze imports and complexity using Python's AST module.
  */
-async function analyzePythonFile(filePath: string): Promise<Map<string, number>> {
+async function analyzePythonFile(filePath: string): Promise<{ imports: Map<string, number>; complexity: number }> {
   // Use path relative to project root since __dirname doesn't work in Next.js API routes
   const analyzerScript = path.join(process.cwd(), 'app/api/analyze/analyzers/python_analyzer.py');
   
@@ -24,11 +27,14 @@ async function analyzePythonFile(filePath: string): Promise<Map<string, number>>
       maxBuffer: 1024 * 1024 // 1MB buffer
     });
     
-    const counts = JSON.parse(stdout) as Record<string, number>;
-    return new Map(Object.entries(counts));
+    const result = JSON.parse(stdout) as { imports: Record<string, number>; complexity: number };
+    return {
+      imports: new Map(Object.entries(result.imports)),
+      complexity: result.complexity
+    };
   } catch (error) {
     console.error(`Error analyzing Python file ${filePath}:`, error);
-    return new Map();
+    return { imports: new Map(), complexity: 1 };
   }
 }
 
@@ -87,6 +93,21 @@ function pythonModuleToFilePath(modulePath: string, currentFileDir: string, allF
   return null;
 }
 
+/**
+ * Calculate cyclomatic complexity for a Python file.
+ * @param filePath - The full path to the Python file
+ * @returns The cyclomatic complexity score
+ */
+export async function calculatePythonComplexity(filePath: string): Promise<number> {
+  try {
+    const result = await analyzePythonFile(filePath);
+    return result.complexity;
+  } catch (error) {
+    console.error(`Failed to calculate complexity for ${filePath}:`, error);
+    return 1;
+  }
+}
+
 // Python analyzer
 export const pythonAnalyzer: LanguageAnalyzer = {
   extensions: PYTHON_EXTENSIONS.map(ext => `.${ext}`),
@@ -138,15 +159,17 @@ export const pythonAnalyzer: LanguageAnalyzer = {
       ? files 
       : files.filter(f => !f.includes('test_') && !f.includes('_test.py') && !f.endsWith('_test.py'));
     
-    // Analyze each Python file to count imports
+    // Analyze each Python file to count imports and calculate complexity
     for (const file of pythonFiles) {
       const fullPath = path.join(repoPath, file);
       
       try {
-        const counts = await analyzePythonFile(fullPath);
-        if (counts.size > 0) {
-          importCounts.set(file, counts);
+        const result = await analyzePythonFile(fullPath);
+        if (result.imports.size > 0) {
+          importCounts.set(file, result.imports);
         }
+        // Store complexity score
+        complexityScores.set(file, result.complexity);
       } catch (error) {
         console.error(`Failed to analyze ${file}:`, error);
       }
