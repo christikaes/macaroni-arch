@@ -12,7 +12,6 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
   const { files, displayItems: serverDisplayItems, fileList } = data;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [isPending, startTransition] = useTransition();
-  const [hoveredCell, setHoveredCell] = useState<{ row: number; col: number } | null>(null);
   
   const displayItems = useMemo(() => {
     if (!serverDisplayItems) return [];
@@ -92,6 +91,61 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
     });
     return total;
   }, [fileList, dependencyLookup]);
+
+  // Calculate min and max dependency counts for gradient
+  const { minDeps, maxDeps } = useMemo(() => {
+    let min = Infinity;
+    let max = 0;
+    
+    dependencyLookup.forEach((count) => {
+      if (count > 0) {
+        min = Math.min(min, count);
+        max = Math.max(max, count);
+      }
+    });
+    
+    return { minDeps: min === Infinity ? 1 : min, maxDeps: max || 1 };
+  }, [dependencyLookup]);
+
+  // Calculate max complexity score for grey gradient on diagonal
+  const maxComplexity = useMemo(() => {
+    let max = 0;
+    fileList.forEach((filePath) => {
+      const complexity = files[filePath]?.complexity;
+      if (complexity !== undefined) {
+        max = Math.max(max, complexity);
+      }
+    });
+    return max || 1;
+  }, [fileList, files]);
+
+  // Get background color based on dependency count (green -> orange gradient)
+  const getDependencyColor = useCallback((count: number): string => {
+    if (count === 0) return 'rgb(255, 255, 255)'; // white for no dependencies
+    
+    // Normalize to 0-1 range
+    const normalized = (count - minDeps) / (maxDeps - minDeps);
+    
+    // Green (34, 197, 94) -> Orange (249, 115, 22)
+    const red = Math.round(34 + (249 - 34) * normalized);
+    const green = Math.round(197 + (115 - 197) * normalized);
+    const blue = Math.round(94 + (22 - 94) * normalized);
+    
+    return `rgb(${red}, ${green}, ${blue})`;
+  }, [minDeps, maxDeps]);
+
+  // Get background color for complexity scores (light grey -> dark grey gradient)
+  const getComplexityColor = useCallback((complexity: number): string => {
+    if (complexity === 0) return 'rgb(243, 244, 246)'; // light grey for 0
+    
+    // Normalize to 0-1 range
+    const normalized = complexity / maxComplexity;
+    
+    // Light grey (243, 244, 246) -> Dark grey (55, 65, 81)
+    const value = Math.round(243 - (243 - 55) * normalized);
+    
+    return `rgb(${value}, ${value + 10}, ${value + 35})`;
+  }, [maxComplexity]);
 
   // Get maximum indent level to determine number of hierarchy columns
   const maxIndent = useMemo(() => {
@@ -203,22 +257,22 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
             {Array.from({ length: numHierarchyColumns }).map((_, idx) => (
               <th
                 key={`header-${idx}`}
-                className={`sticky top-0 z-20 bg-yellow-100 border border-yellow-400 text-xs font-semibold text-gray-700`}
-                style={{ left: `${idx * 20}px`, width: "20px", padding: "0" }}
+                className="bg-yellow-100 text-xs font-semibold text-gray-700"
+                style={{ width: "20px", height: "20px", padding: "0", aspectRatio: "1", border: "1px solid rgba(250, 204, 21, 0.5)" }}
               >
               </th>
             ))}
             <th
               key="header-id"
-              className="sticky top-0 z-20 bg-yellow-100 border border-yellow-400 border-r border-r-black text-xs font-semibold text-gray-700"
-              style={{ left: `${numHierarchyColumns * 20}px`, width: "30px", padding: "0" }}
+              className="bg-yellow-100 text-xs font-semibold text-gray-700"
+              style={{ width: "30px", height: "30px", padding: "0", aspectRatio: "1", border: "1px solid rgba(250, 204, 21, 0.5)", borderRight: "1px solid rgba(0, 0, 0, 0.5)" }}
             >
             </th>
             {matrixItems.map((item, idx) => (
               <th
                 key={idx}
-                className="sticky top-0 border border-yellow-400 bg-yellow-100 text-xs font-semibold text-gray-700"
-                  style={{ width: "30px", padding: "4px 2px", height: "120px" }}
+                className="bg-yellow-100 text-xs font-semibold text-gray-700"
+                  style={{ width: "30px", padding: "4px 2px", height: "120px", border: "1px solid rgba(250, 204, 21, 0.5)" }}
                   title={item.path}
                 >
                   <div className="flex items-center justify-center h-full">
@@ -252,8 +306,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                     return (
                       <td
                         key={`hierarchy-${colIdx}`}
-                        className="sticky z-10 bg-yellow-50 border border-yellow-400"
-                        style={{ left: `${colIdx * 40}px`, minWidth: "40px" }}
+                        className="bg-yellow-50"
+                        style={{ minWidth: "40px", border: "1px solid rgba(250, 204, 21, 0.5)" }}
                       />
                     );
                   }
@@ -270,7 +324,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                       <td
                         rowSpan={cellInfo.rowspan}
                         colSpan={colspan}
-                        className={`sticky z-10 bg-yellow-50 border border-yellow-400 text-xs font-medium text-gray-800 ${
+                        className={`bg-yellow-50 text-xs font-medium text-gray-800 ${
                           isClickable ? "cursor-pointer hover:bg-yellow-100" : ""
                         }`}
                         onClick={() => {
@@ -280,7 +334,7 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                             toggleCollapse(rowItem.path);
                           }
                         }}
-                        style={{ left: `${colIdx * 20}px`, width: `${20 * colspan}px`, padding: "2px", fontSize: "10px" }}
+                        style={{ width: `${20 * colspan}px`, padding: "2px", fontSize: "10px", border: "1px solid rgba(250, 204, 21, 0.5)" }}
                       >
                         {cellInfo.content && (
                           <div className={cellInfo.shouldRotate ? "flex items-center justify-center" : ""}>
@@ -317,8 +371,8 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                       {isLastPart && cellInfo.isFirstInGroup && (
                         <td
                           rowSpan={cellInfo.rowspan}
-                          className="sticky z-10 bg-yellow-50 border border-yellow-400 border-r border-r-black text-center text-gray-500"
-                          style={{ left: `${numHierarchyColumns * 20}px`, width: "30px", padding: "2px", fontSize: "10px" }}
+                          className="bg-yellow-50 text-center text-gray-500"
+                          style={{ width: "30px", height: "30px", padding: "2px", fontSize: "10px", aspectRatio: "1", border: "1px solid rgba(250, 204, 21, 0.5)", borderRight: "1px solid rgba(0, 0, 0, 0.5)" }}
                         >
                           {rowItem.id}
                         </td>
@@ -374,23 +428,47 @@ export default function DSMMatrix({ data }: DSMMatrixProps) {
                     if (isLastCol) borderClasses.push("border-r-2 border-r-black");
                   }
 
-                  const isHovered = hoveredCell && (hoveredCell.row === rowIdx || hoveredCell.col === colIdx);
+                  let bgColor = 'rgb(255, 255, 255)';
+                  if (isMainDiagonal && complexityScore !== undefined) {
+                    bgColor = getComplexityColor(complexityScore);
+                  } else if (isCyclical) {
+                    bgColor = 'rgb(239, 68, 68)'; // red for cyclical
+                  } else if (hasDependency) {
+                    bgColor = getDependencyColor(depCount);
+                  }
+
+                  // Convert border classes to inline styles with 50% transparency
+                  const borderStyle: Record<string, string> = {
+                    border: "1px solid rgba(250, 204, 21, 0.5)"
+                  };
+                  if (borderClasses.includes("border-t-2 border-t-black")) borderStyle.borderTop = "2px solid rgba(0, 0, 0, 0.5)";
+                  if (borderClasses.includes("border-b-2 border-b-black")) borderStyle.borderBottom = "2px solid rgba(0, 0, 0, 0.5)";
+                  if (borderClasses.includes("border-l-2 border-l-black")) borderStyle.borderLeft = "2px solid rgba(0, 0, 0, 0.5)";
+                  if (borderClasses.includes("border-r-2 border-r-black")) borderStyle.borderRight = "2px solid rgba(0, 0, 0, 0.5)";
 
                   return (
                     <td
                       key={colIdx}
-                      onMouseEnter={() => setHoveredCell({ row: rowIdx, col: colIdx })}
-                      onMouseLeave={() => setHoveredCell(null)}
-                      className={`border border-yellow-400 text-center text-xs ${
-                        isHovered
-                          ? "bg-blue-200"
-                          : hasDependency
+                      className={`text-center text-xs ${
+                        hasDependency
                           ? isCyclical
-                            ? "text-red-600 font-bold cursor-pointer"
-                            : "text-orange-600 font-semibold cursor-pointer"
+                            ? "text-white font-bold cursor-pointer"
+                            : "text-gray-800 font-semibold cursor-pointer"
                           : ""
-                      } bg-white ${borderClasses.join(" ")}`}
-                      style={{ width: "30px", height: "30px", padding: "0", fontSize: "10px" }}
+                      }`}
+                      style={{ 
+                        width: "30px", 
+                        height: "30px",
+                        minWidth: "30px",
+                        minHeight: "30px",
+                        maxWidth: "30px",
+                        maxHeight: "30px",
+                        padding: "0", 
+                        fontSize: "10px",
+                        boxSizing: "border-box",
+                        backgroundColor: bgColor,
+                        ...borderStyle
+                      }}
                       title={
                         isMainDiagonal
                           ? `${rowItem.path}${complexityScore !== undefined ? ` - Complexity: ${complexityScore}` : ''}`

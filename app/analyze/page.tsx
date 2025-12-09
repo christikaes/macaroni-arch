@@ -119,11 +119,7 @@ export default function AnalyzePage() {
         )}
 
         {dsmData && !loading && !error && (
-          <div className="flex-1 flex items-center justify-center px-8 pb-8">
-            <div className="bg-white rounded-lg shadow-xl">
-              <DSM data={dsmData} />
-            </div>
-          </div>
+          <DSM data={dsmData} />
         )}
       </div>
     </div>
