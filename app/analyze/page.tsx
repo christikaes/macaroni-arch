@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import DSM from "~/components/DSM";
+import DSM from "~/components/DSM/index";
 import { DSMData } from "~/types/dsm";
 import Link from "next/link";
 
